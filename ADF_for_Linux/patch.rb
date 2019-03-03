@@ -1,8 +1,7 @@
-# encoding: ASCII-8BIT
+# encoding: UTF-8
 # ruby 2.4.5
-# The above designation of encoding (as binary) is essential, or else the comparison b/w the read strings and the target strings will be problematic
+
 print "\e]0;ADF 2012.01 Patcher by Zack\a"
-puts
 @total = [0, 0] # number of [all, patched] files
 
 def patch(filename)
@@ -15,46 +14,25 @@ def patch(filename)
     @times = 0 # number of to-be-patched patterns
     @bytes = 0 # processed length [in tenths MB]
     loop do
-        b = f.gets(sep="\x75") # read until met with 0x75 (the first byte of JNZ)
+        b = f.gets(sep="\x75") # read until met with 0x75 (JNZ)
+        if b.nil? then f.close; g.close; break end # EOF
         len = b.size # read length
         g.write(b) # copy
         mb = @bytes.to_i; @bytes += len/104857.6 # check if the change is larger than 0.1 MB (to run more smoothly)
         print("\r\e[1;33mProcessed\e[0m ~%.1f MB. " % (@bytes/10)) if @bytes.to_i != mb
 
-        b2 = f.getc # to check if met with EOF
-        if b2.nil? then f.close; g.close; break end # EOF
-        g.putc(b2); d = f.read(14) # check the pattern
-        if d.nil? then f.close; g.close; break end
-        if d.length < 14 then g.write(d); f.close; g.close; break end # EOF
+        next if len < 14
+        d = b[-14, 12] # check the pattern
         case d
-        when "\x8b\x55\xe4\xb9\xff\xff\xff\xff\x3b\x55\xd8\x0f\x4f\xc1"
-            puts "\r\e[1;32mFound pattern\e[0m, JNZ -> NOP: 8B 55 E4 B9 FF FF FF FF 3B 55 D8 0F 4F C1\t\t[14]"
-            f.seek(-16, 1); f.putc(0x90); f.putc(0x90) # first JNZ -> NOP
-            g.write(f.read(16)) # copy
-        when "\x8b\x95\x28\xff\xff\xff\xb9\xff\xff\xff\xff\x3b\x95\x20"
-            puts "\r\e[1;32mFound pattern\e[0m, JNZ -> NOP: 8B 95 28 FF FF FF B9 FF FF FF FF 3B 95 20 ... E1\t[20]"
-            f.seek(-16, 1); f.putc(0x90); f.putc(0x90)
-            g.write(f.read(23))
-        when "\x8b\x95\x1c\xff\xff\xff\xb9\xff\xff\xff\xff\x3b\x95\x14"
-            puts "\r\e[1;32mFound pattern\e[0m, JNZ -> NOP: 8B 95 1C FF FF FF B9 FF FF FF FF 3B 95 14 ... E1\t[20]"
-            f.seek(-16, 1); f.putc(0x90); f.putc(0x90)
-            g.write(f.read(23))
-        when "\x8b\x85\x1c\xff\xff\xff\xba\xff\xff\xff\xff\x3b\x85\x14"
-            puts "\r\e[1;32mFound pattern\e[0m, JNZ -> NOP: 8B 85 1C FF FF FF BA FF FF FF FF 3B 85 14 ... E2\t[32]"
-            f.seek(-16, 1); f.putc(0x90); f.putc(0x90)
-            g.write(f.read(23))
-        when "\x8b\x95\x24\xff\xff\xff\xb9\xff\xff\xff\xff\x3b\x95\x1c"
-            puts "\r\e[1;32mFound pattern\e[0m, JNZ -> NOP: 8B 95 24 FF FF FF B9 FF FF FF FF 3B 95 1C ... E1\t[32]"
-            f.seek(-16, 1); f.putc(0x90); f.putc(0x90)
-            g.write(f.read(23))
-        when "\x8b\x95\x30\xff\xff\xff\xb9\xff\xff\xff\xff\x3b\x95\x28"
-            puts "\r\e[1;32mFound pattern\e[0m, JNZ -> NOP: 8B 95 30 FF FF FF B9 FF FF FF FF 3B 95 28 ... E1\t[32]"
-            f.seek(-16, 1); f.putc(0x90); f.putc(0x90)
-            g.write(f.read(23))
+        when "\xff\xff\xff\x41\xbc\x00\x00\x00\x00\x44\x0f\x4f".force_encoding("ASCII-8BIT")
+            puts "\r\e[1;32mFound pattern\e[0m, MOV R12D, 0 -> MOV R12D, -1: FF FF FF \e[7m41 BC 00 00 00 00\e[0m 44 0F 4F"
+            f.seek(-9, 1); f.write("\xff\xff\xff\xff"); f.seek(5, 1)
+        when "\x33\xc0\xb9\xff\xff\xff\xff\x3b\x55\xdc\x0f\x4f".force_encoding("ASCII-8BIT")
+            puts "\r\e[1;32mFound pattern\e[0m, XOR EAX, EAX -> MOV  AL, -1: \e[7m33 C0\e[0m B9 FF FF FF FF 3B 55 DC 0F 4F"
+            f.seek(-14, 1); f.write("\xb0\xff"); f.seek(12, 1)
         else
-            f.seek(-14, 1); next # not a to-be-patched pattern; roll back
+            next # not a to-be-patched pattern; roll back
         end
-        f.seek(-2, 1); f.putc(0x90); f.putc(0x90) # second JNZ -> NOP
         @times += 1
     end
     if @times.zero?
@@ -67,7 +45,8 @@ def patch(filename)
         return true
     end
 rescue Interrupt # Ctrl-C
-    print "\e[1;33mDo you want to (C)ontinue, to stop patching this (F)ile or to stop the whole (O)peration (note that all these may cause unrepairable damage to the file): \e[0m"
+    puts "\e[1;33mDo you want to \e[4mC\e[24montinue, to stop patching this \e[4mF\e[24mile or to stop the whole \e[4mO\e[24mperation?\e[0m"
+    print "(C/F/O; Note that all these may cause unrepairable damage to the file): "
     # cleanse well
     f.close; g.close
     File.delete(filename + ".bak")
@@ -92,10 +71,27 @@ def exit(code=0) # to pause before exiting
     _exit(code)
 end
 
-puts "\e[1;33mAre you sure to patch all the applicable .exe files in this folder(y/n):\e[0m\n\t" + File.expand_path(".")
-exit unless STDIN.gets.downcase[0] == "y"
-for i in Dir.entries(".")
-    patch(i) if File.extname(i) == ".exe"
+loop do
+    begin
+        puts; insPath = ENV['ADFBIN']
+        if insPath.nil? then puts "\e[1;31mSeems that ADF is not installed \e[0msince $ADFBIN is not set."; exit end
+        puts "\e[1;33mIs ADF 2012 installed at the following path? \e[0mEnter \e[4mY\e[24m for yes or else the real path:"
+        puts "\t\"#{insPath}\""
+        l = STDIN.gets.chomp
+        insPath = l if l.downcase[0] != "y"
+        Dir.chdir(insPath)
+        break
+    rescue
+        puts "\n\e[1;31mCannot get access to the designated folder: \e[0mPress Enter to retry..."
+        print "\t\"#{insPath}\"\n\n"
+        STDIN.gets
+        print "\ec"
+    end
 end
+
+plist = Dir.entries('.').delete_if {|i| File.extname(i) != ".exe"}
+plist.each_with_index {|i, x| plist[x] = File.readlink(i) if File.symlink?(i)}
+plist.uniq.each {|i| patch(i)}
+
 puts "\nIn this operation, \e[1;32m#{@total[1]} out of #{@total[0]} file(s) have been patched.\e[0m"
 exit
