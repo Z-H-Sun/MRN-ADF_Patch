@@ -1,11 +1,19 @@
+#!/usr/bin/env ruby
 # encoding: ASCII-8Bit
 # ruby 2.0.0
-print "\033]0;MestReNova 12.0 (Mac) Patcher by Zack\007"
+print "\033]0;MestReNova 14/12 (Mac) Patcher by Zack\007"
+require 'io/console'
 
 def patch(filename)
     puts "\n\e[1;33mProcessing\e[0m #{filename}..."
     # do not patch patched ones
-    if File.exist?(filename + ".bak") then puts("This file might have already been patched. \e[1;33mNo operation performed.\e[0m"); return false end
+    if File.exist?(filename + ".bak")
+        puts 'This file might have already been patched [Press `Y\' to override].'
+        if STDIN.getch.downcase != 'y'
+            puts("\e[1;33mNo operation performed.\e[0m")
+            return false
+        end
+    end
     f = open(filename, "r+b") # read and write, binary
     g = open(filename + ".bak", "wb")
     @times = @byte = 0 # number of to-be-patched patterns, processed length
@@ -61,8 +69,8 @@ end
 
 dir = '/Applications/MestReNova.app/Contents/MacOS'
 unless Dir.exists?(dir) then puts "\n\e[1;31mSeems that MestReNova is not installed..."; exit end
-print "\n\e[1;33mPress Enter to patch MestReNova at \e[0m#{dir}"
-STDIN.gets
+print "\n\e[1;33mPress `y' to patch MestReNova at \e[0m#{dir}"
+exit unless STDIN.getch.downcase == 'y'
 
 Dir.chdir(dir)
 patch('MestReNova')
@@ -70,10 +78,10 @@ patch('MestReNova')
 # ------------------------------------------------------------------------------
 
 licenseDir = File.join(dir, 'licenses')
-Dir.mkdir('licenses') unless Dir.exists?(licenseDir)
 puts "\n\e[1;33mReleasing .LIC files in\e[0m #{licenseDir}..."
 
 begin
+Dir.mkdir('licenses') unless Dir.exists?(licenseDir)
 d = %Q(<mlic version="1.0">
 <licid>{0-0-0-0-0}</licid>
 <type>single</type>

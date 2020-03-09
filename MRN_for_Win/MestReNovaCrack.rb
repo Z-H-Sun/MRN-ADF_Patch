@@ -1,12 +1,18 @@
 # encoding: ASCII-8Bit
 # ruby 1.8.7
-system("title MestReNova 12.0 Patcher by Zack")
+system("title MestReNova 14/12 Patcher by Zack")
 @total = [0, 0] # number of [all, patched] files
 
 def patch(filename)
     puts "\n\e[1;33mProcessing\e[0m #{filename}..."
     # do not patch patched ones
-    if File.exist?(filename + ".bak") then puts("This file might have already been patched. \e[1;33mNo operation performed.\e[0m"); return false end
+    if File.exist?(filename + ".bak")
+        puts 'This file might have already been patched [Press `Y\' to override].'
+        if `choice /N`.chomp.downcase != 'y'
+            puts("\e[1;33mNo operation performed.\e[0m")
+            return false
+        end
+    end
     f = open(filename, "r+b") # read and write, binary
     g = open(filename + ".bak", "wb")
     @times = 0 # number of to-be-patched patterns
