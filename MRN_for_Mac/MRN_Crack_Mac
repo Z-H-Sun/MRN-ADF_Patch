@@ -8,7 +8,7 @@ def patch(filename)
     puts "\n\e[1;33mProcessing\e[0m #{filename}..."
     # do not patch patched ones
     if File.exist?(filename + ".bak")
-        puts 'This file might have already been patched [Press `Y\' to override].'
+        puts "\e[1;33mThis file might have already been patched [Press `Y\' to override].\e[0m"
         if STDIN.getch.downcase != 'y'
             puts("\e[1;33mNo operation performed.\e[0m")
             return false
@@ -16,6 +16,40 @@ def patch(filename)
     end
     f = open(filename, "r+b") # read and write, binary
     g = open(filename + ".bak", "wb")
+
+    # clear digital signature
+    g.write(f.read(16))
+    tmp = f.read(16)
+    g.write(tmp) # end of mach head
+    f.seek(16)
+    ncmd = tmp[0, 4].unpack('l')[0]
+    f.write([ncmd-1].pack('l'))
+    cmdSize = tmp[4, 4].unpack('l')[0]
+    f.write([cmdSize-16].pack('l'))
+    f.seek(32) # end of mach head
+
+    g.write(f.read(cmdSize-16))
+    tmp = f.read(16)
+    g.write(tmp) # end of load cmd
+    if tmp[0, 4] != "\x1d\0\0\0" # LC_CODE_SIGNATURE
+        puts "\e[1;33mWarning: No signature found. Is this authetic MNova? [Press `Y\' to continue anyway]\e[0m"
+        if STDIN.getch.downcase != 'y'
+            puts("\e[1;33mNo operation performed.\e[0m")
+            f.close; g.close
+            File.delete(filename + ".bak")
+            return false
+        end
+    else
+        sigOffset = tmp[8, 4].unpack('l')[0]
+        sigSize = tmp[12, 4].unpack('l')[0]
+        f.seek(-16, 1)
+        f.write("\0"*16) # end of load cmd
+        f.seek(sigOffset)
+        f.write("\0"*sigSize)
+        f.seek(cmdSize + 32)
+        puts "\e[1;32mSuccessfully removed digital signature.\e[0m"
+    end
+
     @times = @byte = 0 # number of to-be-patched patterns, processed length
     loop do
         b = f.gets(sep="\x80") # read until met with 0x80
