@@ -2,7 +2,49 @@
 # encoding: ASCII-8Bit
 # ruby 2.0.0
 require 'io/console'
-print "\033]0;ChemDraw 17~19 (Mac) Universal Patcher by Zack\007"
+print "\033]0;ChemDraw 17~20 (Mac) Universal Patcher by Zack\007"
+
+def removeSig(filename)
+    puts "\e[1;33mProcessing\e[0m #{filename}..."
+    f = open(filename, "r+b") # read and write, binary
+
+    f.seek(16)
+    tmp = f.read(16)
+    ncmd = tmp[0, 4].unpack('l')[0]
+    cmdSize = tmp[4, 4].unpack('l')[0]
+    f.seek(32) # end of mach head
+
+    f.seek(cmdSize-16, 1)
+    tmp = f.read(16) # end of load cmd
+    if tmp[0, 4] != "\x1d\0\0\0" # LC_CODE_SIGNATURE
+        puts "\e[1;33mWarning: No signature found. Is this authentic ChemDraw?\e[0m"
+        f.close; return false
+    end
+    sigOffset = tmp[8, 4].unpack('l')[0]
+    sigSize = tmp[12, 4].unpack('l')[0]
+    puts "\e[1;32mDigital signature block found\e[0m @ 0x#{sigOffset.to_s(16)} (+ 0x#{sigSize.to_s(16)})"
+    print "\e[1;32mDo you wish to \e[7mPATCH\e[0m [y/N]? (This cannot be undone) "
+    if STDIN.getch.downcase == 'y'
+        f.seek(-16, 1)
+        f.write("\0"*16) # end of load cmd
+        f.seek(16)
+        f.write([ncmd-1].pack('l'))
+        f.write([cmdSize-16].pack('l'))
+        f.seek(sigOffset)
+        f.write("\0"*sigSize)
+        f.close
+
+        puts "\e[1;32mSuccessfully removed digital signature.\e[0m"
+        return true
+    end
+    puts("\e[1;33mNo operation performed.\e[0m")
+    f.close; return false
+rescue # error
+    puts "\e[1;31mError occurred:\e[0m"
+    puts $!.inspect
+    puts $@.inspect
+    return false
+end
 
 def patch(filename)
     puts "\e[1;33mProcessing\e[0m #{filename}..."
@@ -74,15 +116,16 @@ Dir.entries('/Applications').each do |i|
     next unless i.include?('ChemDraw')
     puts; print "\e[7m"; puts '-'*50; puts i.sub('.app', '').ljust(50); puts '-'*50; print "\e[0m"
     ver = i[/\d+\.?\d*/].to_f
+    s = File.join('/Applications', i, 'Contents/MacOS/ChemDraw')
     if ver < 17
         puts "\e[1;31mNot applicable (Version number #{ver} < 17)\e[0m"; next
     elsif ver < 18
-        f = File.join('/Applications', i, 'Contents/MacOS/ChemDraw')
+        f = s
     else
         f = File.join('/Applications', i, 'Contents/Frameworks/ChemDrawBase.framework/Versions/A/ChemDrawBase')
     end
-    if File.exists?(f)
-        patch(f); @vers += 1
+    if File.exists?(f) and File.exists?(s)
+        removeSig(s); patch(f); @vers += 1
     else
         puts "\e[1;31mNot applicable (File not found)\e[0m"
     end

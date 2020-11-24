@@ -32,7 +32,7 @@ def patch(filename)
     tmp = f.read(16)
     g.write(tmp) # end of load cmd
     if tmp[0, 4] != "\x1d\0\0\0" # LC_CODE_SIGNATURE
-        puts "\e[1;33mWarning: No signature found. Is this authetic MNova? [Press `Y\' to continue anyway]\e[0m"
+        puts "\e[1;33mWarning: No signature found. Is this authentic MNova? [Press `Y\' to continue anyway]\e[0m"
         if STDIN.getch.downcase != 'y'
             puts("\e[1;33mNo operation performed.\e[0m")
             f.close; g.close
