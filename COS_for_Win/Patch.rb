@@ -1,4 +1,4 @@
-system("title ChemOffice Suite 18/19 Patcher by Zack")
+system("title ChemOffice Suite 18~20 Patcher by Zack")
 Dir.chdir(File.dirname($Exerb ? ExerbRuntime.filepath : __FILE__)) # change currentDir to the file location
 
 # Read *backwards* as there are multiple `patterns' while always the last one is of interest
@@ -98,7 +98,7 @@ for i in 0..1 # check 32-bit and 64-bit registry
     break
   end
   if listVer[i].empty? then puts "\e[1;31mNOT installed\e[0m"; next end
-  unless listVer[i][1]==18 or listVer[i][1]==19
+  if listVer[i][1] < 18
     print " \e[1;31m(NOT supported)\e[0m"
     listVer[i] = []
   end
@@ -109,11 +109,11 @@ puts(c = `choice /T 10 /D Y /N`.chomp.upcase)
 if c=='N'
   for i in 0..1
     puts; puts "For \e[1;33m#{(i+1)*32}-bit ChemOffice\e[0m:"
-    print '  Enter the version number (e.g. 18.2, 19.0): ____'; print "\b"*4
+    print '  Enter the version number (e.g. 18.2, 20.0): ____'; print "\b"*4
     v = `cmd /V /C \"set /p var=&& echo !var!\"` # STDIN.gets will not work after calling `choice`
     listVer[i][1] = v.split('.')[0].to_i
     listVer[i][2] = v.split('.')[1].to_i
-    unless listVer[i][1]==18 or listVer[i][1]==19
+    if listVer[i][1] < 18
       puts "  \e[1;31m(NOT supported)\e[0m"
       listVer[i] = []
     else
@@ -134,7 +134,7 @@ for i in 0..1
   next if listVer[i].empty?
   rename << File.join(listVer[i][3], 'Common\DLLs\FlxComm' + '64'*i + '.dll')
   rename << File.join(listVer[i][3], 'Common\DLLs\FlxCore' + '64'*i + '.dll')
-  next unless listVer[i][1] == 19
+  next if listVer[i][1] < 19
   Find.find(listVer[i][3]) {|j| patch << j.gsub('/', "\\") if exts.include?(File.extname(j).downcase) and File.basename(j)[0, 5] != 'FlxCo'}
 end
 rename.each do |i|
@@ -184,12 +184,34 @@ patch.each {|i| patch(i, m)}
 
 puts; puts "Among #{@total[0]} activation-related files, \e[1;32m#{@total[1]} were patched, \e[1;33m#{@total[2]} were restored, \e[1;31m#{@total[4]} failed, \e[0mand #{@total[3]} were ignored."
 
-puts "\nIn the popup dialog(s), please click on the \e[7mActivate\e[0m button, and enjoy using ChemOffice Crack! You can fill up user information as you please." unless m == 'R'
-system('pause')
-exit if m == 'R'
+if m == 'R' then puts; system('pause'); exit end
 
 for i in 0..1
-  next unless listVer[i][1]==18 or listVer[i][1]==19
-  `Activation\\activate#{listVer[i][1]}.exe #{listVer[i][1]}.#{listVer[i][2]}`
-  break if listVer[0][1]==listVer[1][1]
+  next if listVer[i].empty?
+  next if listVer[i][1] < 18
+  key = "HKLM\\Software\\PerkinElmerInformatics\\ChemBioOffice\\#{listVer[i][1]}.#{listVer[i][2]}\\Ultra"
+  `reg add #{key} /f /reg:#{(i+1)*32}`
+  `reg add #{key} /v \"Activation Code\" /t REG_SZ /d 6UE-7IMW3-5W-QZ5P-J3PCX-OHDX-35GRN /f /reg:#{(i+1)*32}`
+  `reg add #{key} /v \"Serial Number\" /t REG_SZ /d 875-385499-9864 /f /reg:#{(i+1)*32}`
+  `reg add #{key} /v Success /t REG_SZ /d True /f /reg:#{(i+1)*32}`
 end
+
+puts "\nRegistry entries modified. \e[1;32mEND OF PATCH.\e[0m\nOptional: In the following lines, please input \e[4marbitrary\e[0m info (or leave blank), and enjoy using ChemOffice Crack!" unless m == 'R'
+
+info = ['', '', '']
+print '  User Name:    _______________'; print "\b"*15
+info[0] = `cmd /V /C \"set /p var=&& echo !var!\"`.chomp
+print '  Email:        _______________'; print "\b"*15
+info[1] = `cmd /V /C \"set /p var=&& echo !var!\"`.chomp
+print '  Organization: _______________'; print "\b"*15
+info[2] = `cmd /V /C \"set /p var=&& echo !var!\"`.chomp
+
+for i in 0..1
+  next if listVer[i].empty?
+  next if listVer[i][1] < 18
+  key = "HKLM\\Software\\PerkinElmerInformatics\\ChemBioOffice\\#{listVer[i][1]}.#{listVer[i][2]}\\Ultra"
+  `reg add #{key} /v \"User Name\" /t REG_SZ /d \"#{info[0]}\" /f /reg:#{(i+1)*32}`
+  `reg add #{key} /v Email /t REG_SZ /d \"#{info[1]}\" /f /reg:#{(i+1)*32}`
+  `reg add #{key} /v Organization /t REG_SZ /d \"#{info[2]}\" /f /reg:#{(i+1)*32}`
+end
+puts; system('pause')
