@@ -1,80 +1,53 @@
-system("title ChemOffice Suite 18~20 Patcher by Zack")
+system("title ChemOffice Suite 18~21 Patcher by Zack")
 Dir.chdir(File.dirname($Exerb ? ExerbRuntime.filepath : __FILE__)) # change currentDir to the file location
 
-# Read *backwards* as there are multiple `patterns' while always the last one is of interest
-# See also: [flori/file-tail](https://github.com/flori/file-tail/blob/master/lib/file/tail.rb)
-BUF_SIZE = 1 << 16
 @total = [0, 0, 0, 0, 0] # number of [all, patched, restored, ignored, failed] files
 
 def patch(filename, mode)
-  f = open(filename, 'rb')
-  f.seek(0, 2) # start from EOF
-  tail = '' # the remaining part not dealt with in the last block, which ends with a "\x2a"
-  last = 0  # the length of content when reading for the last time
-  loop do
-    begin
-      f.seek(-BUF_SIZE, 1)
-      d = f.read(BUF_SIZE) + tail
-      ind = d.index("\x2a")
-      if ind.nil?
-        tail = ''
-      else
-        tail = d[0, ind+1] # the new `tail'
-        d = d[ind+1..-1]
-      end
-    rescue Errno::EINVAL # reach the beginning of the file
-      last = f.tell
-      f.rewind
-      d = f.read(last) + tail
+  f = open(filename, 'r+b')
+  while not f.eof?
+    d = f.gets(sep="\x2a") # read until met with 0x2a (retn)
+    next if d.size < 42 # Filter 1
+    next unless d[-5, 5] == "\x0a\x06\x0b\x07\x2a"
+    next unless d[-12, 6] == "\x2d\x04\x17\x0a\x2b\x02" # Filter 2
+    case d[-6]
+    when 0x17
+      patched = true
+    when 0x16
+      patched = false
+    else
+      next
     end
-    pos = f.tell # current position
-    offset = d.rindex(/\x2d\x04\x17\x0a\x2b\x02[\x16\x17]\x0a\x06\x0b\x07\x2a/)
-    unless offset.nil?
-      @total[0] += 1
-      puts "\n\e[4m#{filename}\e[0m"
-      offset2 = ind+offset+7-BUF_SIZE
-      if d[offset, 7] == "\x2d\x04\x17\x0a\x2b\x02\x17"
-        print "\e[1;33mPatched Pattern\e[0m [2d 04 17 0a 2b 02 \e[7m17\e[0m 0a 06 0b 07 2a] \e[1;33mfound at offset 0x#{(pos+offset2).to_s(16)}\e[0m "
-      else
-        print "\e[1;32mPattern to be patched\e[0m [2d 04 17 0a 2b 02 \e[7m16\e[0m 0a 06 0b 07 2a] \e[1;32mfound at offset 0x#{(pos+offset2).to_s(16)}\e[0m "
-      end
-      tempMode = mode
-      if mode == 'A'
-        print "\nChoose the \e[4m[P]atch\e[0m or \e[4m[R]estore\e[0m mode: "
-        print(tempMode = `choice /T 10 /C PR /D P /N`.chomp.upcase)
-      end
-      if d[offset, 7] == "\x2d\x04\x17\x0a\x2b\x02\x17"
-        if tempMode == 'R'
-          f2 = open(filename, 'r+b')
-          f2.seek(pos+offset2, 0)
-          f2.write("\x16")
-          f2.close
-          puts "\e[1;33m: Restored.\e[0m"
-          @total[2] += 1
-        else
-          puts ": Ignored."
-          @total[3] += 1
-        end
-      else
-        if tempMode == 'R'
-          puts ": Ignored."
-          @total[3] += 1
-        else
-          f2 = open(filename, 'r+b') # write separately
-          f2.seek(pos+offset2, 0)
-          f2.write("\x17")
-          f2.close
-          puts "\e[1;32m: Patched.\e[0m"
-          @total[1] += 1
-        end
-      end
-      last = -1 # elicit `break'
-      break
+    @total[0] += 1
+    f.seek(-6, 1)
+    puts "\n\e[4m#{filename}\e[0m"
+    print "\e[1;33m#{patched ? 'Patched pattern' : 'Pattern to be patched'}\e[0m [2d 04 17 0a 2b 02 \e[7m1#{patched ? 7 : 6}\e[0m 0a 06 0b 07 2a] \e[1;33mfound at offset 0x#{f.tell.to_s(16)}\e[0m "
+    tempMode = mode
+    if mode == 'A'
+      print "\nChoose the \e[4m[P]atch\e[0m or \e[4m[R]estore\e[0m mode: "
+      print(tempMode = `choice /T 10 /C PR /D P /N`.chomp.upcase)
     end
-    break unless last.zero?
-    f.seek(-BUF_SIZE, 1)
+    if patched
+      if tempMode == 'R'
+        f.write("\x16")
+        puts "\e[1;33m: Restored.\e[0m"
+        @total[2] += 1
+      else
+        puts ": Ignored."
+        @total[3] += 1
+      end
+    else
+      if tempMode == 'R'
+        puts ": Ignored."
+        @total[3] += 1
+      else
+        f.write("\x17")
+        puts "\e[1;32m: Patched.\e[0m"
+        @total[1] += 1
+      end
+    end
+    break
   end
-  # puts "\e[1;31mNo pattern found.\e[0m No operation taken." if last >= 0
   f.close
 rescue # error
   puts "\e[1;31mError occurred:"

@@ -1,4 +1,4 @@
-system("title ChemOffice Suite 18~20 Patcher [DEPRECATED] by Zack")
+system("title ChemOffice Suite 18~21 Patcher [DEPRECATED] by Zack")
 Dir.chdir(File.dirname($Exerb ? ExerbRuntime.filepath : __FILE__)) # change currentDir to the file location
 
 # Read *backwards* as there are multiple `patterns' while always the last one is of interest
@@ -84,7 +84,7 @@ rescue # error
 end
 
 listVer = [[], []]
-puts "\n***** Note: Use this tool only when you want to activate multiple ChemOffice users in your local network, as this crack method is flawed (e.g. Chem3D hotlink cannot work properly in ChemDraw). Otherwise, try the other better crack tool here: https://bit.ly/3dHDGqJ. ****\n\nYou have:"
+puts "\n***** Note: Use this tool only when you want to activate multiple ChemOffice users in your local network, as this crack method is flawed (e.g. Chem3D hotlink cannot work properly in ChemDraw). Otherwise, try the other better crack tool here: https://bit.ly/3uc32oY/ ****\n\nYou have:"
 for i in 0..1 # check 32-bit and 64-bit registry
   list = ''
   print "  \e[1;33m#{(i+1)*32}-bit ChemOffice\e[0m "
