@@ -1,0 +1,94 @@
+#!/usr/bin/env ruby
+# encoding: ASCII-8Bit
+
+MagicNums = {11 => [0x29C2, 0x29F8, 0x2FDB, 0x44F1, 0x6A90, 0xA439, 0xA68B, 0xD226, 0xDB74, 0xE4A7, 0xEE71],
+12 => [0xD227, 0xDB75, 0xEE71, 0x29C2, 0x44F1, 0x8E3C, 0x60F0, 0xABEB, 0x8250, 0x8C68, 0xE756],
+13 => [0xDB75, 0xEE71, 0x29C2, 0x44F1, 0x8E3C, 0x60F0, 0xABEB, 0x8250, 0x8C68, 0xE756, 0xB4D0, 0xCD2D, 0x22DD, 0x66C0, 0xD54F, 0xB013, 0x5417]}
+
+# Ruby 1.8.7 and Ruby 2 compatibility
+def randchoice(arr)
+    return arr.choice if Array.method_defined?(:choice)
+    return arr.sample
+end
+def ascii(byte)
+    return byte.ord if String.method_defined?(:ord)
+    return byte
+end
+# -----------------------------------
+
+def f1(n, byte, c)
+    for bitIndex in 0...8
+        bit = (byte >> bitIndex) & 1
+        if bit + ((n - bit) & ~1) == n
+            n = (n - bit) >> 1
+        else
+            n = ((c - bit) ^ n) >> 1
+        end
+    end
+    return n
+end
+
+def getPsw(_str, _hash)
+    for byteIndex in _str.length.downto(1)
+        _hash = f1(_hash, ascii(_str[byteIndex-1]), 0x105C3)
+    end
+    n1 = 0
+    while f1(f1(_hash, n1 & 0xFF, 0x105C3), n1 >> 8, 0x105C3) != 0xA5B6
+        n1 += 1
+        return false if n1 >= 0xFFFF
+    end
+    n1 = ((n1 + 0x72FA) & 0xFFFF) * 99999 / 0xFFFF # int
+    n1str = ("0000" + n1.to_s)[-5, 5]
+    temp = (n1str[0...-3] + n1str[-2, 2] + n1str[-3, 1]).to_i
+    temp = temp * 0xFFFF / 99999 + 1 # int
+    temp = f1(f1(0, temp & 0xFF, 0x1064B), temp >> 8, 0x1064B)
+    for byteIndex in _str.length.downto(1)
+        temp = f1(temp, ascii(_str[byteIndex-1]), 0x1064B)
+    end
+    n2 = 0
+    while f1(f1(temp, n2 & 0xFF, 0x1064B), n2 >> 8, 0x1064B) != 0xA5B6
+        n2 += 1
+        return false if n2 >= 0xFFFF
+    end
+    n2 = (n2 & 0xFFFF) * 99999 / 0xFFFF
+    n2str = ("0000" + n2.to_s)[-5, 5]
+    return n2str[3,1] + n1str[3,1] + n1str[1,1] + n1str[0,1] + "-" + n2str[4,1] + n1str[2,1] + n2str[0,1] + "-" + n2str[2,1] + n1str[4,1] + n2str[1,1] + "::1"
+end
+
+ver = false
+while !ver
+    print 'Version (11/12/13): '
+    v = gets.to_i
+    if v < 11 or v > 13
+        puts 'NOT A SUPPORTED VERSION!'
+    else
+        ver = v
+    end
+end
+mathID = false
+while !mathID
+    print 'MathID (xxxx-xxxxx-xxxxx): '
+    m = gets.strip
+    if m[4,1] != '-' or m[10,1] != '-' or m.length != 16 or ((m[0, 4]+m[5, 5]+m[-5, 5]) =~ /\A[-+]?\d*\.?\d+\z/).nil?
+        puts 'NOT A VALID MATHID!'
+    else
+        mathID = m
+    end
+end
+mnChoices = MagicNums[ver]
+password = false
+while !password
+    activationKey = []
+    14.times {activationKey << rand(10)}
+    activationKey = ('%d'*4+'-'+'%d'*4+'-'+'%d'*6) % activationKey
+    password = getPsw(mathID + '$1&' + activationKey, randchoice(mnChoices))
+end
+puts
+puts 'Activation Key:'
+puts activationKey
+puts
+puts 'Password:'
+puts password
+puts
+puts 'Press Enter to exit.'
+gets
