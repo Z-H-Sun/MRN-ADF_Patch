@@ -69,7 +69,7 @@ mathID = false
 while !mathID
     print 'MathID (xxxx-xxxxx-xxxxx): '
     m = gets.strip
-    if m[4,1] != '-' or m[10,1] != '-' or m.length != 16 or ((m[0, 4]+m[5, 5]+m[-5, 5]) =~ /\A[-+]?\d*\.?\d+\z/).nil?
+    if m[4,1] != '-' or m[10,1] != '-' or m.length != 16 or ((m[0, 4]+m[5, 5]+m[-5, 5]) =~ /\A\d+\z/).nil?
         puts 'NOT A VALID MATHID!'
     else
         mathID = m
@@ -90,5 +90,5 @@ puts
 puts 'Password:'
 puts password
 puts
-puts 'Press Enter to exit.'
+print 'Press Enter to exit.'
 gets
