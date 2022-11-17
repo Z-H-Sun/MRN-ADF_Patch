@@ -2,7 +2,7 @@
 # encoding: ASCII-8Bit
 # ruby 2.0.0
 require 'io/console'
-print "\033]0;ChemDraw 17~20 (Mac) Universal Patcher by Zack\007"
+print "\033]0;ChemDraw 17~22 (Mac) Universal Patcher by Zack\007"
 
 def removeSig(filename)
     puts "\e[1;33mProcessing\e[0m #{filename}..."

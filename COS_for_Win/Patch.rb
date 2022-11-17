@@ -1,4 +1,4 @@
-system("title ChemOffice Suite 18~21 Patcher by Zack")
+system("title ChemOffice Suite 18~22 Patcher by Zack")
 Dir.chdir(File.dirname($Exerb ? ExerbRuntime.filepath : __FILE__)) # change currentDir to the file location
 
 @total = [0, 0, 0, 0, 0] # number of [all, patched, restored, ignored, failed] files
@@ -61,7 +61,7 @@ puts "\nYou have:"
 for i in 0..1 # check 32-bit and 64-bit registry
   list = ''
   print "  \e[1;33m#{(i+1)*32}-bit ChemOffice\e[0m "
-  ['HKLM', 'HKCU'].each {|j| list +=  `reg query #{j}\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall /s /t REG_SZ /f ChemOffice /reg:#{(i+1)*32} 2>nul`} # check CurrentUser and LocalMachine
+  ['HKLM', 'HKCU'].each {|j| list +=  `reg query #{j}\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall /s /t REG_SZ /f "ChemOffice " /reg:#{(i+1)*32} 2>nul`} # check CurrentUser and LocalMachine ("ChemOffice " the space is necessary to exclude ChemOffice+)
   for k in list.split("\n\n")
     next unless k.include?('DisplayName')
     key = k.strip.split("\n")[0]
