@@ -102,7 +102,7 @@ puts(m = `choice /T 10 /C PRA /D P /N`.chomp.upcase)
 
 require 'find'
 rename = []; patch = []
-exts = ['.exe', '.dll', '.ocx']
+exts = ['.exe', '.dll', '.ocx', '.pyd']
 for i in 0..1
   next if listVer[i].empty?
   rename << File.join(listVer[i][3], 'Common\DLLs\FlxComm' + '64'*i + '.dll')

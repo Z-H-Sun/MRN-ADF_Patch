@@ -1,4 +1,4 @@
-system("title ChemOffice Suite 18~21 Patcher [DEPRECATED] by Zack")
+system("title ChemOffice Suite 18~22 Patcher [DEPRECATED] by Zack")
 Dir.chdir(File.dirname($Exerb ? ExerbRuntime.filepath : __FILE__)) # change currentDir to the file location
 
 # Read *backwards* as there are multiple `patterns' while always the last one is of interest
@@ -88,7 +88,7 @@ puts "\n***** Note: Use this tool only when you want to activate multiple ChemOf
 for i in 0..1 # check 32-bit and 64-bit registry
   list = ''
   print "  \e[1;33m#{(i+1)*32}-bit ChemOffice\e[0m "
-  ['HKLM', 'HKCU'].each {|j| list +=  `reg query #{j}\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall /s /t REG_SZ /f ChemOffice /reg:#{(i+1)*32} 2>nul`} # check CurrentUser and LocalMachine
+  ['HKLM', 'HKCU'].each {|j| list +=  `reg query #{j}\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall /s /t REG_SZ /f "ChemOffice " /reg:#{(i+1)*32} 2>nul`} # check CurrentUser and LocalMachine ("ChemOffice " the space is necessary to exclude ChemOffice+)
   for k in list.split("\n\n")
     next unless k.include?('DisplayName')
     key = k.strip.split("\n")[0]
@@ -129,7 +129,7 @@ puts(m = `choice /T 10 /C PRA /D P /N`.chomp.upcase)
 
 require 'find'
 patch = []
-exts = ['.exe', '.dll', '.ocx']
+exts = ['.exe', '.dll', '.ocx', '.pyd']
 for i in 0..1
   next if listVer[i].empty?
   Find.find(listVer[i][3]) {|j| patch << j.gsub('/', "\\") if exts.include?(File.extname(j).downcase) and File.basename(j)[0, 5] != 'FlxCo'}
