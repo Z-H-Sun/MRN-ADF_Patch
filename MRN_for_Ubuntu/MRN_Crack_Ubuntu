@@ -76,7 +76,7 @@ end
 file = `which MestReNova`.chomp
 if file.empty? then puts "\n\e[1;31mSeems that MestReNova is not installed..."; exit end
 dir = File.join(`dirname $(dirname $(readlink -f #{file}))`.chomp, 'lib')
-unless Dir.exists?(dir) then puts "\n\e[1;31mSeems that MestReNova is not installed..."; exit end
+unless Dir.exist?(dir) then puts "\n\e[1;31mSeems that MestReNova is not installed..."; exit end
 print "\n\e[1;33mPress `y' to patch MestReNova at \e[0m#{dir}"
 exit unless STDIN.getch.downcase == 'y'
 
@@ -138,7 +138,7 @@ data = {'AFFINImeter-NMR.lic' => ['AFFINImeter-NMR', '1.0', '{0BA83ECE-335C-404A
 'StructureElucidation.lic' => ['Structure Elucidation', '1.0', '{6475DEBF-AB41-4FED-AE06-7996A427201C}']}
 
 begin
-    Dir.mkdir('licenses') unless Dir.exists?(licenseDir)
+    Dir.mkdir('licenses') unless Dir.exist?(licenseDir)
     data.keys.each {|i| open(File.join(licenseDir, i), 'w') {|f| f.write(contents % data[i])}}
     puts "\e[1;32mAll .LIC files have been created.\e[0m"
 rescue

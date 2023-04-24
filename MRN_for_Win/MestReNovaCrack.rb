@@ -152,7 +152,7 @@ for i in listNum
     patch(filename)
 
     licenseDir = File.join(listDir[i], 'licenses')
-    Dir.mkdir(licenseDir) unless File.exists?(licenseDir)
+    Dir.mkdir(licenseDir) unless File.exist?(licenseDir)
     puts "\n\e[1;33mReleasing .LIC files in\e[0m #{licenseDir}..."
 
     begin
