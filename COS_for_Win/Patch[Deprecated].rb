@@ -84,7 +84,7 @@ rescue # error
 end
 
 listVer = [[], []]
-puts "\n***** Note: Use this tool only when you want to activate multiple ChemOffice users in your local network, as this crack method is flawed (e.g. Chem3D hotlink cannot work properly in ChemDraw). Otherwise, try the other better crack tool here: https://bit.ly/3uc32oY/ ****\n\nYou have:"
+puts "\n***** Note: Use this tool only when you want to activate multiple ChemOffice users in your local network, as this crack method is flawed (e.g. Chem3D hotlink cannot work properly in ChemDraw). Otherwise, try the other better crack tool here: https://bit.ly/3NQfPZV ****\n\nYou have:"
 for i in 0..1 # check 32-bit and 64-bit registry
   list = ''
   print "  \e[1;33m#{(i+1)*32}-bit ChemOffice\e[0m "
