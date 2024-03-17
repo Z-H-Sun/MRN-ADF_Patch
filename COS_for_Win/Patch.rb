@@ -97,7 +97,8 @@ puts "\nYou have:"
 for i in 0..1 # check 32-bit and 64-bit registry
   list = ''
   print "  \e[1;33m#{(i+1)*32}-bit ChemOffice\e[0m "
-  ['HKLM', 'HKCU'].each {|j| list +=  `reg query #{j}\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall /s /t REG_SZ /f "ChemOffice " /reg:#{(i+1)*32} 2>nul`} # check CurrentUser and LocalMachine ("ChemOffice " the space is necessary to exclude ChemOffice+)
+  ['ChemOffice ', 'ChemDraw Suite'].each {|n|
+    ['HKLM', 'HKCU'].each {|j| list +=  `reg query #{j}\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall /s /t REG_SZ /f "#{n}" /reg:#{(i+1)*32} 2>nul`}} # check CurrentUser and LocalMachine ("ChemOffice " the space is necessary to exclude ChemOffice+; ChemDraw Suite is for version >= 23)
   for k in list.split("\n\n")
     next unless k.include?('DisplayName')
     key = k.strip.split("\n")[0]
@@ -141,8 +142,13 @@ rename = []; patch = []
 exts = ['.exe', '.dll', '.ocx', '.pyd']
 for i in 0..1
   next if listVer[i].empty?
+  if File.directory?(File.join(listVer[i][3], 'Common'))
   rename << File.join(listVer[i][3], 'Common\DLLs\FlxComm' + '64'*i + '.dll')
   rename << File.join(listVer[i][3], 'Common\DLLs\FlxCore' + '64'*i + '.dll')
+  else
+    rename << File.join(listVer[i][3], 'FlxComm' + '64'*i + '.dll')
+    rename << File.join(listVer[i][3], 'FlxCore' + '64'*i + '.dll')
+  end
   next if listVer[i][1] < 19
   Find.find(listVer[i][3]) {|j| patch << j.gsub('/', "\\") if exts.include?(File.extname(j).downcase) and File.basename(j)[0, 5] != 'FlxCo'}
 end
@@ -199,12 +205,19 @@ for i in 0..1
   next if listVer[i].empty?
   next if listVer[i][1] < 18
   for d in ['HKLM', 'HKCU']
-    for n in ['', "#{listVer[i][1]}.#{listVer[i][2]}\\"]
-      key = "#{d}\\Software\\PerkinElmerInformatics\\ChemBioOffice\\#{n}Ultra"
+    for n in ['', "#{listVer[i][1]}.#{listVer[i][2]}\\"] # 22.2: ''
+      key = "#{d}\\Software\\RevvitySignalsSoftware\\Chemistry"
+      if listVer[i][1] > 22 # 23.0: confirm licensing method
+        `reg add #{key} /f /reg:#{(i+1)*32}`
+        `reg add #{key} /v LicensingService.LicenseSystem /t REG_SZ /d flexera /f /reg:#{(i+1)*32}`
+      end
+      for m in ['RevvitySignalsSoftware', 'PerkinElmerInformatics'] # 23.0: 'RevvitySignalsSoftware'
+      key = "#{d}\\Software\\#{m}\\ChemBioOffice\\#{n}Ultra"
       `reg add #{key} /f /reg:#{(i+1)*32}`
       `reg add #{key} /v \"Activation Code\" /t REG_SZ /d 6UE-7IMW3-5W-QZ5P-J3PCX-OHDX-35GRN /f /reg:#{(i+1)*32}`
       `reg add #{key} /v \"Serial Number\" /t REG_SZ /d 875-385499-9864 /f /reg:#{(i+1)*32}`
       `reg add #{key} /v Success /t REG_SZ /d True /f /reg:#{(i+1)*32}`
+      end
     end
   end
 end
@@ -223,11 +236,13 @@ for i in 0..1
   next if listVer[i].empty?
   next if listVer[i][1] < 18
   for d in ['HKLM', 'HKCU']
-    for n in ['', "#{listVer[i][1]}.#{listVer[i][2]}\\"]
-      key = "#{d}\\Software\\PerkinElmerInformatics\\ChemBioOffice\\#{n}Ultra"
+    for n in ['', "#{listVer[i][1]}.#{listVer[i][2]}\\"] # 22.2: ''
+      for m in ['RevvitySignalsSoftware', 'PerkinElmerInformatics'] # 23.0: 'RevvitySignalsSoftware'
+      key = "#{d}\\Software\\#{m}\\ChemBioOffice\\#{n}Ultra"
       `reg add #{key} /v \"User Name\" /t REG_SZ /d \"#{info[0]}\" /f /reg:#{(i+1)*32}`
       `reg add #{key} /v Email /t REG_SZ /d \"#{info[1]}\" /f /reg:#{(i+1)*32}`
       `reg add #{key} /v Organization /t REG_SZ /d \"#{info[2]}\" /f /reg:#{(i+1)*32}`
+      end
     end
   end
 end
