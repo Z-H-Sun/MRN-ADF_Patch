@@ -1,6 +1,6 @@
 # encoding: ASCII-8Bit
 
-system("title ChemOffice Suite 18.0-22.2 Patcher by Zack")
+system("title ChemOffice Suite 18.0-23.0 Patcher by Zack")
 Dir.chdir(File.dirname($Exerb ? ExerbRuntime.filepath : __FILE__)) # change currentDir to the file location
 
 @total = [0, 0, 0, 0, 0, 0] # number of [all, patched, restored, ignored, failed, patial] files
@@ -143,9 +143,9 @@ exts = ['.exe', '.dll', '.ocx', '.pyd']
 for i in 0..1
   next if listVer[i].empty?
   if File.directory?(File.join(listVer[i][3], 'Common'))
-  rename << File.join(listVer[i][3], 'Common\DLLs\FlxComm' + '64'*i + '.dll')
-  rename << File.join(listVer[i][3], 'Common\DLLs\FlxCore' + '64'*i + '.dll')
-  else
+    rename << File.join(listVer[i][3], 'Common\DLLs\FlxComm' + '64'*i + '.dll')
+    rename << File.join(listVer[i][3], 'Common\DLLs\FlxCore' + '64'*i + '.dll')
+  else # 23.0 NA version; dlls stored under installation root dir
     rename << File.join(listVer[i][3], 'FlxComm' + '64'*i + '.dll')
     rename << File.join(listVer[i][3], 'FlxCore' + '64'*i + '.dll')
   end
@@ -212,11 +212,11 @@ for i in 0..1
         `reg add #{key} /v LicensingService.LicenseSystem /t REG_SZ /d flexera /f /reg:#{(i+1)*32}`
       end
       for m in ['RevvitySignalsSoftware', 'PerkinElmerInformatics'] # 23.0: 'RevvitySignalsSoftware'
-      key = "#{d}\\Software\\#{m}\\ChemBioOffice\\#{n}Ultra"
-      `reg add #{key} /f /reg:#{(i+1)*32}`
-      `reg add #{key} /v \"Activation Code\" /t REG_SZ /d 6UE-7IMW3-5W-QZ5P-J3PCX-OHDX-35GRN /f /reg:#{(i+1)*32}`
-      `reg add #{key} /v \"Serial Number\" /t REG_SZ /d 875-385499-9864 /f /reg:#{(i+1)*32}`
-      `reg add #{key} /v Success /t REG_SZ /d True /f /reg:#{(i+1)*32}`
+        key = "#{d}\\Software\\#{m}\\ChemBioOffice\\#{n}Ultra"
+        `reg add #{key} /f /reg:#{(i+1)*32}`
+        `reg add #{key} /v \"Activation Code\" /t REG_SZ /d 6UE-7IMW3-5W-QZ5P-J3PCX-OHDX-35GRN /f /reg:#{(i+1)*32}`
+        `reg add #{key} /v \"Serial Number\" /t REG_SZ /d 875-385499-9864 /f /reg:#{(i+1)*32}`
+        `reg add #{key} /v Success /t REG_SZ /d True /f /reg:#{(i+1)*32}`
       end
     end
   end
@@ -238,10 +238,10 @@ for i in 0..1
   for d in ['HKLM', 'HKCU']
     for n in ['', "#{listVer[i][1]}.#{listVer[i][2]}\\"] # 22.2: ''
       for m in ['RevvitySignalsSoftware', 'PerkinElmerInformatics'] # 23.0: 'RevvitySignalsSoftware'
-      key = "#{d}\\Software\\#{m}\\ChemBioOffice\\#{n}Ultra"
-      `reg add #{key} /v \"User Name\" /t REG_SZ /d \"#{info[0]}\" /f /reg:#{(i+1)*32}`
-      `reg add #{key} /v Email /t REG_SZ /d \"#{info[1]}\" /f /reg:#{(i+1)*32}`
-      `reg add #{key} /v Organization /t REG_SZ /d \"#{info[2]}\" /f /reg:#{(i+1)*32}`
+        key = "#{d}\\Software\\#{m}\\ChemBioOffice\\#{n}Ultra"
+        `reg add #{key} /v \"User Name\" /t REG_SZ /d \"#{info[0]}\" /f /reg:#{(i+1)*32}`
+        `reg add #{key} /v Email /t REG_SZ /d \"#{info[1]}\" /f /reg:#{(i+1)*32}`
+        `reg add #{key} /v Organization /t REG_SZ /d \"#{info[2]}\" /f /reg:#{(i+1)*32}`
       end
     end
   end
