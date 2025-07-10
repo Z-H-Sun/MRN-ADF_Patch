@@ -1,6 +1,6 @@
 # encoding: ASCII-8Bit
 
-system("title ChemOffice Suite 18.0-23.0 Patcher by Zack")
+system("title ChemOffice Suite 18.0-25.0 Patcher by Zack")
 Dir.chdir(File.dirname($Exerb ? ExerbRuntime.filepath : __FILE__)) # change currentDir to the file location
 
 @total = [0, 0, 0, 0, 0, 0] # number of [all, patched, restored, ignored, failed, patial] files
@@ -104,7 +104,7 @@ puts "\nYou have:"
 for i in 0..1 # check 32-bit and 64-bit registry
   list = ''
   print "  \e[1;33m#{(i+1)*32}-bit ChemOffice\e[0m "
-  ['ChemOffice ', 'ChemDraw Suite'].each {|n|
+  ['ChemOffice ', 'ChemDraw Suite', 'Revvity ChemDraw'].each {|n|
     ['HKLM', 'HKCU'].each {|j| list +=  `reg query #{j}\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall /s /t REG_SZ /f "#{n}" /reg:#{(i+1)*32} 2>nul`}} # check CurrentUser and LocalMachine ("ChemOffice " the space is necessary to exclude ChemOffice+; ChemDraw Suite is for version >= 23)
   for k in list.split("\n\n")
     next unless k.include?('DisplayName')
