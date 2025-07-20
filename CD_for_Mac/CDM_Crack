@@ -2,65 +2,167 @@
 # encoding: ASCII-8Bit
 # ruby 2.0.0
 require 'io/console'
-print "\033]0;ChemDraw 17~23 (Mac) Universal Patcher by Zack\007"
+print "\033]0;ChemDraw 17~25 (Mac) Universal Patcher by Zack\007"
 
-def removeSig(filename)
+def removeAllSig(filename)
     puts "\e[1;33mProcessing\e[0m #{filename}..."
     f = open(filename, "r+b") # read and write, binary
+    if f.read(4) == "\xCA\xFE\xBA\xBE" # Mach-O Fat Binary
+        n = f.read(4).unpack('N')[0] # fat_arch_size; big-endian
+        o = Array.new(n, 0)
+        s = Array.new(n, 0)
+        for i in 0...n
+            f.seek(8, 1) # skip arch cpu_(sub_)type
+            o[i], s[i] = f.read(8).unpack('N2') # arch file_offsset; size
+            f.seek(4, 1) # skip alignment
+        end
+        for i in 0...n
+            puts "\e[1;32mMach-O binary found\e[0m @ 0x#{o[i].to_s(16)} (+ 0x#{s[i].to_s(16)})"
+            removeSig(f, o[i], s[i])
+        end
+    else
+        removeSig(f, 0, File.size(f))
+    end
+    f.close
+rescue # error
+    puts "\e[1;31mError occurred:\e[0m"
+    puts $!.inspect
+    puts $@.inspect
+end
 
-    f.seek(16)
-    tmp = f.read(16)
-    ncmd = tmp[0, 4].unpack('l')[0]
-    cmdSize = tmp[4, 4].unpack('l')[0]
-    f.seek(32) # end of mach head
-
+def removeSig(f, offset, size)
+    f.seek(offset)
+    if f.read(4) != "\xCF\xFA\xED\xFE" # Mach-O binary
+        puts "\e[1;33mWarning: Not a Mach-O binary @ 0x#{offset.to_s(16)}. Is this authentic ChemDraw?\e[0m"
+        return
+    end
+    c = f.read(4)
+    if c == "\7\0\0\1" # cpu_type==x86_64
+      @must_code_sign = false
+    elsif c == "\x0C\0\0\1" # cpu_type==ARM64
+      @need_code_sign = true
+    end
+    f.seek(8, 1)
+    tmp = f.read(16) # now at: end of mach head
+    ncmd, cmdSize = tmp.unpack('L2')
+    if cmdSize+32 > size
+        puts "\e[1;33mWarning: EOF reached. Is this authentic ChemDraw?\e[0m"
+        return
+    end
     f.seek(cmdSize-16, 1)
     tmp = f.read(16) # end of load cmd
     if tmp[0, 4] != "\x1d\0\0\0" # LC_CODE_SIGNATURE
         puts "\e[1;33mWarning: No signature found. Is this authentic ChemDraw?\e[0m"
-        f.close; return false
+        return
     end
-    sigOffset = tmp[8, 4].unpack('l')[0]
-    sigSize = tmp[12, 4].unpack('l')[0]
+    sigOffset, sigSize = tmp[8, 8].unpack('L2')
+    if sigOffset+sigSize > size
+        puts "\e[1;33mWarning: EOF reached. Is this authentic ChemDraw?\e[0m"
+        return
+    end
     puts "\e[1;32mDigital signature block found\e[0m @ 0x#{sigOffset.to_s(16)} (+ 0x#{sigSize.to_s(16)})"
     print "\e[1;32mDo you wish to \e[7mPATCH\e[0m [y/N]? (This cannot be undone) "
     if STDIN.getch.downcase == 'y'
         f.seek(-16, 1)
         f.write("\0"*16) # end of load cmd
-        f.seek(16)
-        f.write([ncmd-1].pack('l'))
-        f.write([cmdSize-16].pack('l'))
-        f.seek(sigOffset)
+        f.seek(16+offset)
+        f.write([ncmd-1, cmdSize-16].pack('L2'))
+        f.seek(sigOffset+offset)
         f.write("\0"*sigSize)
-        f.close
-
         puts "\e[1;32mSuccessfully removed digital signature.\e[0m"
-        return true
+        return
     end
+    @need_code_sign = false # cancelled
     puts("\e[1;33mNo operation performed.\e[0m")
-    f.close; return false
+rescue # error
+    @need_code_sign = false # cancelled
+    puts "\e[1;31mError occurred:\e[0m"
+    puts $!.inspect
+    puts $@.inspect
+end
+
+def patchAll(filename) # FNEActivationHelperMac::GetActivatedSKUAndProductLevel {return 0}
+    puts "\e[1;33mProcessing\e[0m #{filename}..."
+    f = open(filename, "r+b") # read and write, binary
+    @times = @byte = 0 # number of to-be-patched patterns, processed length
+
+    d = f.read(8)
+    if d[0, 4] == "\xCA\xFE\xBA\xBE" # Mach-O Fat Binary
+        _, n = d.unpack('N2') # fat_arch_size; big-endian
+        o1 = s1 = o2 = s2 = 0
+        for i in 0...n
+            c = f.read(4) # arch cpu_type
+            f.seek(4, 1) # skip arch cpu_sub_type
+            o, s = f.read(8).unpack('N2') # arch file_offsset; size
+            f.seek(4, 1) # skip alignment
+            if c == "\1\0\0\7" and o1.zero?
+                o1 = o; s1 = s
+            elsif c == "\1\0\0\x0C" and o2.zero?
+                o2 = o; s2 = s
+            else
+                puts "\e[1;33mIgnored: Mach-O binary of unsupported CPU type [0x#{c.unpack('H*')[0]}] found\e[0m @ 0x#{o.to_s(16)} (+ 0x#{s.to_s(16)})"
+            end
+        end
+        if o1 != 0
+          puts "\e[1;32mMach-O binary [x86_64] found\e[0m @ 0x#{o.to_s(16)} (+ 0x#{s.to_s(16)})"
+          patchX86(f, o1, o1+s1)
+        end
+        if o2 != 0
+          puts "\e[1;32mMach-O binary [ARM64] found\e[0m @ 0x#{o.to_s(16)} (+ 0x#{s.to_s(16)})"
+          patchARM(f, o2, o2+s2) if o2 != 0
+        end
+    elsif d == "\xCF\xFA\xED\xFE\7\0\0\1" # Mach-O binary and cpu_type==x86_64
+        patchX86(f, 0, File.size(f))
+    elsif d == "\xCF\xFA\xED\xFE\x0C\0\0\1" # Mach-O binary and cpu_type==ARM64
+        patchARM(f, 0, File.size(f))
+    else
+        puts "\e[1;33mWarning: Not a Mach-O binary or unsupported CPU type. Is this authentic ChemDraw?\e[0m"
+    end
+    f.close
+    if @times.zero?
+        # not applicable
+        puts "\e[1;33mNo pattern found or canceled by user.\e[0m"
+    else
+        puts "\e[1;33mPatched/Restored #{@times} place(s) in this file.\e[0m"
+    end
 rescue # error
     puts "\e[1;31mError occurred:\e[0m"
     puts $!.inspect
     puts $@.inspect
-    return false
 end
 
-def patch(filename)
-    puts "\e[1;33mProcessing\e[0m #{filename}..."
-    f = open(filename, "r+b") # read and write, binary
-    @times = @byte = 0 # number of to-be-patched patterns, processed length
+def patchX86(f, offset, offset_max)
+    puts "\e[1;33mProcessing x86_64 architecture\e[0m..."
+    f.seek(offset)
     loop do
-        b = f.gets(sep="\xC3") # read until met with 0xC3 (RET)
-        if b.nil? then f.close; break end # EOF
+        maxlen = offset_max-f.pos
+        b = f.gets("\xC3", maxlen) # read until met with 0xC3 (RET); do not read further than `offset_max`
+        break if b.nil? # EOF
         len = b.size # read length
+        break if len == maxlen # EOF
         byte = (f.pos / 104857.6).to_i
         print "\r\e[1;33mProcessed %.1f MB.\e[0m " % (byte/10.0) if byte != @byte
         @byte = byte
         
         next if len < 30
-        if b[-30, 3] == "\x41\x89\xc6"
-        # Ver 18/19: 41 89 C6 48 8D 7D B8 ..{5} 44 89 F0 48 83 C4 28 5B 41 5C 41 5D 41 5E 41 5F 5D C3
+        if b[-26, 4] == "\x48\x89\x1f\xe8" and # mov [rdi], rbx; call ...
+           b[-12].ord < 0x30 # add rsp, 28h [There are multiple functions that matches with the above pattern, so need to restrict more; this function only needs to add 28 bytes to balance the stack, while others requires more
+        # Ver 25: 48 8D 7D C8 48 89 1F E8 ..{4} 44 89 F0 48 83 C4 28 5B 41 5C 41 5D 41 5E 41 5F 5D C3
+            case b[-18, 3]
+            when "\x44\x89\xf0" # to-patch
+                puts "\e[1;32m\rFound pattern\e[0m @ 0x#{f.pos.to_s(16)}, MOV EAX, R14D -> XOR EAX, EAX: 48 89 C6 1F E8 ..{4} \e[7m44 89 F0\e[0m ..{14} C3 => \e[7m31 C0 90\e[0m"
+                print "\e[1;32mDo you wish to \e[7mPATCH\e[0m [y/N]? "
+                break if STDIN.getch.downcase == 'n' # canceled by user
+                f.seek(-18, 1); f.write("\x31\xc0\x90"); f.seek(15, 1)
+            when "\x31\xc0\x90" # patched
+                puts "\e[1;34m\rFound pattern\e[0m @ 0x#{f.pos.to_s(16)}, XOR EAX, EAX -> MOV EAX, R14D: 48 89 C6 1F E8 ..{4} \e[7m31 C0 90\e[0m ..{14} C3 => \e[7m44 89 F0\e[0m"
+                print "\e[1;34mDo you wish to \e[7mRESTORE\e[0m [y/N]? "
+                break if STDIN.getch.downcase == 'n' # canceled by user
+                f.seek(-18, 1); f.write("\x44\x89\xf0"); f.seek(15, 1)
+            else next
+            end
+        elsif b[-30, 3] == "\x41\x89\xc6"
+        # Ver 18..23: 41 89 C6 48 8D 7D B8 ..{5} 44 89 F0 48 83 C4 28 5B 41 5C 41 5D 41 5E 41 5F 5D C3
             case b[-18, 3]
             when "\x44\x89\xf0" # to-patch
                 puts "\e[1;32m\rFound pattern\e[0m @ 0x#{f.pos.to_s(16)}, MOV EAX, R14D -> XOR EAX, EAX: 41 89 C6 ..{9} \e[7m44 89 F0\e[0m ..{14} C3 => \e[7m31 C0 90\e[0m"
@@ -92,22 +194,56 @@ def patch(filename)
         else next # not a to-be-patched pattern; roll back
         end
         @times += 1
-        ###
-        break # there are multiple patterns; however, only the first one is what we desire
+        puts "\e[1;33mOperation performed.\e[0m"
+        return # there are multiple patterns; however, only the first one is what we desire
     end
-    if @times.zero?
-        # not applicable
-        puts "\e[1;33mNo pattern found or canceled by user.\e[0m"
-        return false
-    else
-        puts "\e[1;33mPatched/Restored #{@times} place(s) in this file.\e[0m"
-        return true
-    end
+    puts "\e[1;33mNo operation performed.\e[0m"
 rescue # error
     puts "\e[1;31mError occurred:\e[0m"
     puts $!.inspect
     puts $@.inspect
-    return false
+end
+
+def patchARM(f, offset, offset_max)
+    puts "\e[1;33mProcessing ARM64 architecture\e[0m..."
+    f.seek(offset)
+    loop do
+        maxlen = offset_max-f.pos
+        b = f.gets("\xC0\x03\x5F\xD6", maxlen) # read until met with C0 03 5F D6 (RET); do not read further than `offset_max`
+        break if b.nil? # EOF
+        len = b.size # read length
+        break if len == maxlen # EOF
+        byte = (f.pos / 104857.6).to_i
+        print "\r\e[1;33mProcessed %.1f MB.\e[0m " % (byte/10.0) if byte != @byte
+        @byte = byte
+        
+        next if len < 45
+        if b[-45, 5] == "\x97\xF3\x03\x00\xAA" # BL ...; MOV X19, X0
+        # Ver 25:  BL <xxxToLevCode>; MOV X19, X0; ...; BL <destroy_vector>; MOV X0, X19; LDP X29, X30, ...; ADD SP, SP, #0x70; RET
+            case b[-28, 4]
+            when "\xE0\x03\x13\xAA" # to-patch
+                puts "\e[1;32m\rFound pattern\e[0m @ 0x#{f.pos.to_s(16)}, MOV X0, X19 -> MOV X0, #0: 97 F3 03 00 AA ..{12} \e[7mE0 03 13 AA\e[0m ..{20} C0 03 5F D6 => \e[7m00 00 80 D2\e[0m"
+                print "\e[1;32mDo you wish to \e[7mPATCH\e[0m [y/N]? "
+                break if STDIN.getch.downcase == 'n' # canceled by user
+                f.seek(-28, 1); f.write("\x00\x00\x80\xD2"); f.seek(24, 1)
+            when "\x00\x00\x80\xD2" # patched
+                puts "\e[1;34m\rFound pattern\e[0m @ 0x#{f.pos.to_s(16)}, MOV X0, #0 -> MOV X0, X19: 97 F3 03 00 AA ..{12} \e[7m00 00 80 D2\e[0m ..{20} C0 03 5F D6 => \e[7mE0 03 13 AA\e[0m"
+                print "\e[1;34mDo you wish to \e[7mRESTORE\e[0m [y/N]? "
+                break if STDIN.getch.downcase == 'n' # canceled by user
+                f.seek(-28, 1); f.write("\xE0\x03\x13\xAA"); f.seek(24, 1)
+            else next
+            end
+        else next # not a to-be-patched pattern; roll back
+        end
+        @times += 1
+        puts "\e[1;33mOperation performed.\e[0m"
+        return # there are multiple patterns; however, only the first one is what we desire
+    end
+    puts "\e[1;33mNo operation performed.\e[0m"
+rescue # error
+    puts "\e[1;31mError occurred:\e[0m"
+    puts $!.inspect
+    puts $@.inspect
 end
 
 # Main
@@ -125,7 +261,21 @@ Dir.entries('/Applications').each do |i|
         f = File.join('/Applications', i, 'Contents/Frameworks/ChemDrawBase.framework/Versions/A/ChemDrawBase')
     end
     if File.exists?(f) and File.exists?(s)
-        removeSig(s); patch(f); @vers += 1
+        @need_code_sign = false
+        @must_code_sign = true
+        removeAllSig(s); patchAll(f); @vers += 1
+        if @need_code_sign
+            puts "\n\e[1;31mNOTE: Further actions may be necessary to complete the patch. Please read below carefully.\e[0m\n\nStarting from ChemDraw 25.0, support on ARM64 machines (i.e., Macs with Apple Silicon processors) have been implemented; however, MacOS > 10 requires a valid digital signature for an ARM64-architected app to run."
+            if @must_code_sign
+                puts "\e[1;33mTherefore, it is necessary for ChemDraw to be signed.\e[0m Press any key to proceed to complete this process by the `codesign` tool."
+                STDIN.getch
+            else
+                puts "1. If you are using a Mac with Intel processors, you are all set! Feel free to start using ChemDraw now.\n2. Otherwise, you can open ChemDraw with Rosetta; then ChemDraw will also run properly.\n3. If you cannot run Rosetta on a ARM64 Mac, ChemDraw must be signed in order to run. \e[1;33mUse `codesign` tool to complete this process?\e[0m [y/N]?\e[1;31m"
+                next if STDIN.getch.downcase != 'y'
+            end
+            system("codesign --force --deep -s - \"#{s}\"
+if [ \"$?\" -eq 0 ]; then echo \"\e[1;32mSuccessfully signed.\e[0m\"; else echo \"Failed to sign. ChemDraw may not run properly.\e[0m\"; fi")
+        end
     else
         puts "\e[1;31mNot applicable (File not found)\e[0m"
     end
