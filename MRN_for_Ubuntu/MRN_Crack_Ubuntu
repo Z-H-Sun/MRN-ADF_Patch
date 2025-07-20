@@ -2,27 +2,33 @@
 # encoding: ASCII-8Bit
 # ruby 2
 
-print "\033]0;MestReNova 14/12 (Ubuntu) Patcher by Zack\007"
+print "\033]0;MestReNova 12-16 (Ubuntu) Patcher by Zack\007"
 require 'io/console'
 
 def patch(filename)
     puts "\n\e[1;33mProcessing\e[0m #{filename}..."
     # do not patch patched ones
-    if File.exist?(filename + ".bak")
+    bakfilename = filename + '.bak'
+    if File.exist?(bakfilename)
         puts 'This file might have already been patched [Press `Y\' to override].'
         if STDIN.getch.downcase != 'y'
             puts("\e[1;33mNo operation performed.\e[0m")
             return false
         end
+        bakfilename = nil
     end
     f = open(filename, "r+b") # read and write, binary
-    g = open(filename + ".bak", "wb")
+    g = open(bakfilename, "wb") if bakfilename
     @times = 0 # number of to-be-patched patterns
     loop do
         b = f.gets(sep="\x80") # read until met with 0x80
-        if b.nil? then f.close;break end#; g.close; break end # EOF
+        if b.nil?
+            f.close
+            g.close if bakfilename
+            break
+        end # EOF
         len = b.size # read length
-        g.write(b) # copy
+        g.write(b) if bakfilename # copy
         
         next if len < 4
         if b[-4, 4] == "\x0c\x00\x00\x80" or b[-4, 4] == "\x0b\x00\x00\x80"
@@ -52,7 +58,8 @@ def patch(filename)
     end
     if @times.zero?
         # not applicable
-        File.delete(filename + ".bak"); puts "\e[1;33mNo to-be-patched pattern found in this file.\e[0m"
+        File.delete(bakfilename) if bakfilename
+        puts "\e[1;33mNo to-be-patched pattern found in this file.\e[0m"
         return false
     else
         puts "\e[1;33mPatched #{@times} place(s) in this file.\e[0m"
@@ -105,37 +112,88 @@ contents = %Q(<mlic version="1.0">
 </mlic>
 )
 data = {'AFFINImeter-NMR.lic' => ['AFFINImeter-NMR', '1.0', '{0BA83ECE-335C-404A-8226-070838EE6157}'],
-'Database.lic' => ['Database', '1.8', '{533B0BF3-4CE1-4f28-A8F8-E2403AF97030}'],
-'ElViS.lic' => ['ElViS', '1.3', '{D1956E14-B9AE-4B39-A507-A139A58688E3}'],
-'Mass.lic' => ['Mass', '1.8', '{5C1895EB-0054-40B1-BD42-192EF6589F83}'],
-'MBioHOS.lic' => ['MBioHOS', '1.0', '{F65FD237-2DC6-48DC-A5C4-653294F80B78}'],
-'Mbinding.lic' => ['Mbinding', '1.0', '{0514D764-3D21-464B-BD67-9CCA55AF6510}'],
-'MestrelabPredictor.lic' => ['Mestrelab Predictor', '1.8', '{FFB9B818-9D6B-4202-9C7E-B591E0C5C007}'],
-'MnovaBatchPhysChem-AAGAC.lic' => ['Mnova Batch PhysChem: Alpha Acid Glycoprotein Affinity Constant', '1.2', '{A989C2D7-2DD3-4F27-ABDE-B144BF89CB05}'],
-'MnovaBatchPhysChem-BBPC.lic' => ['Mnova Batch PhysChem: Blood-Brain-Partition Coefficient', '1.2', '{AD2E2594-012D-48AC-8A80-399F3C4A9BB7}'],
-'MnovaBatchPhysChem-FBF.lic' => ['Mnova Batch PhysChem: Free Brain Fraction', '1.2', '{AEFF80F9-4D8F-4DD4-90BE-7F28DC1A3478}'],
-'MnovaBatchPhysChem-FPF.lic' => ['Mnova Batch PhysChem: Free Plasma Fraction', '1.2', '{AC885539-E620-4DB1-BA8C-A44A50E897A0}'],
-'MnovaBatchPhysChem-HSAAC.lic' => ['Mnova Batch PhysChem: Human Serum Albumin Affinity Constant', '1.2', '{A8C4492C-FE86-47A2-83FF-0838868B6FEE}'],
-'MnovaBatchPhysChem-MAC.lic' => ['Mnova Batch PhysChem: Membrane Affinity Constant', '1.2', '{AA4BCD25-4337-42C2-834D-A8E14C0B614C}'],
-'MnovaBatchPhysChem-PPPB.lic' => ['Mnova Batch PhysChem: Per cent Plasma Protein Binding', '1.2', '{AB6F7B48-834B-40AB-B54B-DC2F0CB1CE74}'],
-'MnovaBatchPhysChem-Basic.lic' => ['Mnova Batch PhysChem Basic', '1.2', '{A7258B80-DF87-4C99-81EA-E44EC6468271}'],
-'MnovaBatchqNMR.lic' => ['Mnova Batch qNMR', '1.2.1.1740', '{B4A1DA63-354D-4B59-82DD-3266D4775F85}'],
-'MnovaBatchSMA.lic' => ['Mnova Batch SMA', '1.0.0.1926', '{08832918-A60B-11E4-89D3-123B93F75CBA}'],
-'MnovaBatchVerify.lic' => ['Mnova Batch Verify', '2.0', '{7161B159-6AC7-41DE-B3EA-7D703BA222C9}'],
-'MnovaGears.lic' => ['Mnova Gears', '1.0', '{3B25F857-8861-490F-8072-E1577A9FB350}'],
+'Database.lic' => ['Database', '1.16', '{533B0BF3-4CE1-4F28-A8F8-E2403AF97030}'],
+'ElViS.lic' => ['ElViS', '1.6', '{D1956E14-B9AE-4B39-A507-A139A58688E3}'],
+'Mass.lic' => ['Mass', '1.18', '{5C1895EB-0054-40B1-BD42-192EF6589F83}'], # MSChrom
+'Chemometrics.lic' => ['Chemometrics', '1.5', '{0B0981E9-31D2-40A8-A130-8301AD31BF88}'],
+'ChemometricsAdvanced.lic' => ['Chemometrics Advanced', '1.5', '{2E3874BE-7EC3-4758-B71E-DD6F7CFD3D61}'],
+'MBioHOS.lic' => ['MBioHOS', '1.5', '{F65FD237-2DC6-48DC-A5C4-653294F80B78}'],
+'Mbinding.lic' => ['Mbinding', '1.7', '{0514D764-3D21-464B-BD67-9CCA55AF6510}'], # Binding
+'MestrelabPredictor.lic' => ['Mestrelab Predictor', '1.6', '{FFB9B818-9D6B-4202-9C7E-B591E0C5C007}'],
+'MnovaBatchPhysChem-AAGAC.lic' => ['Mnova Batch PhysChem: Alpha Acid Glycoprotein Affinity Constant', '1.8', '{A989C2D7-2DD3-4F27-ABDE-B144BF89CB05}'],
+'MnovaBatchPhysChem-BBPC.lic' => ['Mnova Batch PhysChem: Blood-Brain-Partition Coefficient', '1.8', '{AD2E2594-012D-48AC-8A80-399F3C4A9BB7}'],
+'MnovaBatchPhysChem-FBF.lic' => ['Mnova Batch PhysChem: Free Brain Fraction', '1.8', '{AEFF80F9-4D8F-4DD4-90BE-7F28DC1A3478}'],
+'MnovaBatchPhysChem-FPF.lic' => ['Mnova Batch PhysChem: Free Plasma Fraction', '1.8', '{AC885539-E620-4DB1-BA8C-A44A50E897A0}'],
+'MnovaBatchPhysChem-HSAAC.lic' => ['Mnova Batch PhysChem: Human Serum Albumin Affinity Constant', '1.8', '{A8C4492C-FE86-47A2-83FF-0838868B6FEE}'],
+'MnovaBatchPhysChem-MAC.lic' => ['Mnova Batch PhysChem: Membrane Affinity Constant', '1.8', '{AA4BCD25-4337-42C2-834D-A8E14C0B614C}'],
+'MnovaBatchPhysChem-PPPB.lic' => ['Mnova Batch PhysChem: Per cent Plasma Protein Binding', '1.8', '{AB6F7B48-834B-40AB-B54B-DC2F0CB1CE74}'],
+'MnovaBatchPhysChem-Basic.lic' => ['Mnova Batch PhysChem Basic', '1.8', '{A7258B80-DF87-4C99-81EA-E44EC6468271}'],
+'MnovaBatchqNMR.lic' => ['Mnova Batch qNMR', '3.3.0.18213', '{B4A1DA63-354D-4B59-82DD-3266D4775F85}'],
+'MnovaBatchSMA.lic' => ['Mnova Batch SMA', '3.1.0.9849', '{08832918-A60B-11E4-89D3-123B93F75CBA}'],
+'MnovaBatchVerify.lic' => ['Mnova Batch Verify', '3.1.0.10847', '{7161B159-6AC7-41DE-B3EA-7D703BA222C9}'],
+'MnovaGears.lic' => ['Mnova Gears', '2.7.0.18234', '{3B25F857-8861-490F-8072-E1577A9FB350}'],
+'MnovaGearsRealTime.lic' => ['Mnova Gears Real Time', '2.7.0.18234', '{F5727919-159A-47EA-8147-5BB50428E8D8}'],
+'MnovaGearsBatchMode.lic' => ['Mnova Gears Batch Mode', '2.7.0.18234', '{6E5A378A-F118-4853-836F-945C08F91270}'],
+'MnovaGearsAutomationMode.lic' => ['Mnova Gears Automation Mode', '2.7.0.18234', '{0841ACB2-4E9E-46E8-80A3-369225113F64}'],
+'MnovaGearsOrdersMode.lic' => ['Mnova Gears Orders Mode', '2.7.0.18234', '{3CAAFF10-04AF-4D4E-AF30-149F70F3533C}'],
+'MnovaGearsEnterpriseMode.lic' => ['Mnova Gears Enterprise Mode', '2.7.0.18234', '{FB403B91-8C9D-4BD4-9C0B-BAE8354C71E9}'],
 'MnovaIUPACNameV1.0.lic' => ['Mnova IUPAC Name', '1.0', '{C3D1D7C0-A78F-44A0-ACE7-28EA5EA41CBC}'],
 'MnovaIUPACNameV1.14.lic' => ['Mnova IUPAC Name', '1.14', '{67AA7320-4992-433B-9EA3-4418C887E779}'],
-'MnovaqNMR.lic' => ['Mnova qNMR', '1.2.1.1740', '{5A01D4B0-7E6C-4C09-BF56-0DFCD96AFEFA}'],
-'MnovaScreen.lic' => ['Mnova Screen', '1.2', '{462E9690-D602-4857-A113-3E4B48DBF296}'],
-'MnovaSMA.lic' => ['Mnova SMA', '1.0.0.1937', '{F657C1C0-6675-11E3-949A-0800200C9A66}'],
-'MnovaStereoFitter.lic' => ['Mnova StereoFitter', '1.1', '{A4059C2F-E6C1-4F39-8AD3-89CA17966E9A}'],
-'MnovaVerify.lic' => ['Mnova Verify', '1.5', '{6F96FBD7-E418-4013-A9FA-B588F305C21E}'],
-'NMR.lic' => ['NMR', '1.8', '{5B0A2812-8EE2-406F-8030-84F5F6AC4A4B}'],
-'NMRPredictDesktop.lic' => ['NMRPredict Desktop', '1.8', '{1C479DD8-9A31-4016-AE56-DEE522080B06}'],
+'MnovaqNMR.lic' => ['Mnova qNMR', '3.3.0.17591', '{5A01D4B0-7E6C-4C09-BF56-0DFCD96AFEFA}'],
+'MnovaScreen.lic' => ['Mnova Screen', '2.0.0.15754', '{462E9690-D602-4857-A113-3E4B48DBF296}'],
+'Screen2D.lic' => ['Mnova Screen 2D', '1.0.0.9693', '{9FAC9474-D838-47A4-B0AB-E75F6BC07184}'],
+'MnovaSMA.lic' => ['Mnova SMA', '3.1.0.9874', '{F657C1C0-6675-11E3-949A-0800200C9A66}'],
+'MnovaStereoFitter.lic' => ['Mnova StereoFitter', '1.1.7.16535', '{A4059C2F-E6C1-4F39-8AD3-89CA17966E9A}'],
+'MnovaVerify.lic' => ['Mnova Verify', '1.13', '{6F96FBD7-E418-4013-A9FA-B588F305C21E}'],
+'NMR.lic' => ['NMR', '1.21', '{5B0A2812-8EE2-406F-8030-84F5F6AC4A4B}'],
+'NMRPredictDesktop.lic' => ['NMRPredict Desktop', '1.21', '{1C479DD8-9A31-4016-AE56-DEE522080B06}'], # Modgraph NMRPredict Desktop
+'Modgraph NMRPredict Server.lic' => ['Modgraph NMRPredict Server', '1.9', '{6A883E63-50E7-4470-A615-0A989596E749}'],
 'PhysChemProperties.lic' => ['PhysChem Properties', '1.8', '{63CA247B-FA1D-43cb-AAEE-AC0EF2448B9C}'],
+'PhysChemBasicProperties.lic' => ['PhysChem Basic Properties', '1.8', '{260B68B7-013E-4103-90A7-36C5E02C0651}'],
+'PhysChemHumanSerumAlbuminAffinityConstant.lic' => ['Human Serum Albumin Affinity Constant', '1.2', '{288B9DE6-8BEB-476e-AF90-39DD7171AF30}'],
+'PhysChemAlphaAcidGlycoproteinAffinityConstant.lic' => ['Alpha Acid Glycoprotein Affinity Constant', '1.0', '{296E296F-8F89-42F1-A50A-E89E3D5FDB8E}'],
+'PhysChemMembraneAffinityConstant.lic' => ['Membrane Affinity Constant', '1.2', '{2A4FDB96-F680-48D3-81A5-732A3AB782EB}'],
+'PhysChemPercentPlasmaProteinBinding.lic' => ['Per cent Plasma Protein Binding', '1.2', '{2B0C5816-A337-4BC1-B300-05DA17AFB028}'],
+'PhysChemFreePlasmaFraction.lic' => ['Free Plasma Fraction', '1.2', '{2C85143E-DEB9-4072-9368-48576D21D9BE}'],
+'PhysChemFreeBrainFraction.lic' => ['Free Brain Fraction', '1.2', '{2EE033FD-5966-4B96-A9DA-D236D46A87DB}'],
+'PhysChemBloodBrainPartitionCoefficient.lic' => ['Blood-Brain-Partition Coefficient', '1.2', '{2D39960B-B4F6-4978-B253-4A983CE1A13A}'],
 'RandomForestNMRPredictor.lic' => ['Random Forest NMR Predictor', '1.0', '{233C512F-83AB-4C4D-93E8-E8F31CEEFF5E}'],
-'ReactionMonitoring.lic' => ['Reaction Monitoring', '1.1.0.1443', '{F8559B7C-1F28-4D3C-8F0B-FAE1E87CB364}'],
-'StructureElucidation.lic' => ['Structure Elucidation', '1.0', '{6475DEBF-AB41-4FED-AE06-7996A427201C}']}
+'ReactionMonitoring.lic' => ['Reaction Monitoring', '2.2.0.10421', '{F8559B7C-1F28-4D3C-8F0B-FAE1E87CB364}'],
+'StructureElucidation.lic' => ['Structure Elucidation', '1.7', '{6475DEBF-AB41-4FED-AE06-7996A427201C}'],
+'DFTPredictor.lic' => ['DFT Predictor', '1.6', '{5F53977A-C932-40AE-9824-B87C763F1D60}'],
+'Scripting.lic' => ['Scripting', '1.6', '{80261F66-A825-41A8-B01A-F5FF88DA6D68}'],
+'MnovaSQL.lic' => ['Mnova SQL', '1.5', '{4D03531E-9713-4CB0-94D2-6C92784EC987}'],
+'AffinityScreen.lic' => ['Mnova Affinity Screen', '1.1.0.16553', '{0047CFF6-2C80-447B-A06B-4C178843DEE5}'],
+'CDSAnalytical.lic' => ['CDS Analytical', '1.0.0.16623', '{72C6A455-203C-4B5B-9A25-3FCEDB53D48D}'],
+'ChromBestMethod.lic' => ['Mnova Gears Chrom Best Method', '1.0.1.16376', '{F23DAB0C-A2AD-4EE8-818F-8207670705B9}'],
+'ChromSST.lic' => ['Mnova Gears Chrom SST', '1.0.0.17474', '{12536CA5-82F8-4E09-A75F-1812F50F86B9}'],
+'ChromQC.lic' => ['Mnova Gears ChromQC', '1.0.0.15272', '{438FA5DE-E0F4-4FB1-8CFA-6FDA4483EBF2}'],
+'ChromCal.lic' => ['Mnova Chrom Cal', '1.1.0.18113', '{B4A836A3-202F-46BD-927D-7C3D85DAA852}'],
+'ChromRO.lic' => ['Mnova Chrom Reaction Optimization', '1.2.0.16604', '{E9503914-CE80-4882-9A09-2D3B2C31C110}'],
+'DBSearch.lic' => ['Mnova DB Search', '1.1.0.9879', '{2B904CF7-DDD7-4B69-8CC0-9920A1A05342}'],
+'FractionAnalysis.lic' => ['Mnova Fraction Analysis', '1.0.0.13735', '{E989997A-1876-4AFB-A79F-E499CDA958BA}'],
+'Hub.lic' => ['Mnova Hub', '1.1.0.17840', '{30CB593C-974A-4DE3-B0AC-4A2932351F11}'],
+'HubLOGSProvider.lic' => ['LOGS Provider', '1.1.0.17840', '{393CE037-FE68-419B-8956-FC52F897EB46}'],
+'HubZONTALProvider.lic' => ['ZONTAL Provider', '1.1.0.17840', '{3E6E52EB-686F-47D1-AD3F-92CFCCBB7A35}'],
+'HubSQLProvider.lic' => ['SQL Provider', '1.1.0.17840', '{B3AB6B25-B27B-41A7-ABEA-EC5D924B57A4}'],
+'HubMnDBProvider.lic' => ['MnDB Provider', '1.1.0.17840', '{C316F6FD-C6A7-4457-B5F7-4261FCB5A230}'],
+'HubFileProvider.lic' => ['File Provider', '1.1.0.17840', '{C6A0A932-9F30-40B0-974D-2A079CE4BD19}'],
+'HubTopSpinProvider.lic' => ['TopSpin Provider', '1.1.0.17840', '{F0C84E71-2DF9-4FF0-9C76-21BCD0E98BF5}'],
+'IUPACNameAutomation.lic' => ['IUPAC Name Automation', '1.0.1.8345', '{4C621E86-DF2E-43C1-81C1-E4C70A53F94A}'],
+'MANIQ.lic' => ['MANIQ', '1.1.0.11886', '{9136EFF5-44D3-46D3-BDF4-0757E672FA15}'],
+'MANIQFull.lic' => ['MANIQ (Full)', '1.1.0.11886', '{DF424542-2649-4F98-9F57-5848432236CF}'],
+'MANIQRMS.lic' => ['MANIQ (Raw Material Screening)', '1.1.0.11886', '{44779869-B36D-4B19-A7F5-BD724EC77BE9}'],
+'MixDesign.lic' => ['Mixture Design for NMR Screening', '1.0.0.16058', '{4E1CF3E1-A776-487B-BA8A-B052E9142CC5}'],
+'MSScan.lic' => ['MS Scan', '1.0.0.7270', '{A36F2201-492E-4C24-BB12-6A53C1E2E7DC}'],
+'MultipletReport.lic' => ['Mgears Multiplet Report', '1.1.0.13430', '{B913B803-8C22-4553-B390-6A65D1C36D93}'],
+'PeakReport.lic' => ['Mgears Peak Report', '1.0.0.7270', '{4C4F2F4D-7F0A-4627-B69F-457C0F3FD5DA}'],
+'NoSQLDBConnector.lic' => ['NoSQL DB Connector', '1.0.0.17643', '{A1AEABE5-18FD-40AC-B279-C6FCFE9191BC}'],
+'Publish.lic' => ['Mnova Publish', '1.0.0.7270', '{E2248C81-14E2-4323-A11F-ABAA11304AF6}'],
+'QCProfiling.lic' => ['Mnova QC Profiling', '1.2.0.13735', '{4A5B4822-B8DB-4FE2-BCA0-C1122C6D3ADF}'],
+'USPID.lic' => ['USP-ID Plug-in', '1.0.1.17592', '{EBDD2221-D779-4EAF-8DDA-3F528135AD6A}'],
+'MSpin.lic' => ['MSpin', '2.0', '{61519D7E-EBA9-4009-91AF-733E750EEB17}'],
+'Document.lic' => ['Document', '1.6', '{04A0EFB9-23D6-458F-B526-EA06B71A650F}'],
+'NMR LITE.lic' => ['NMR LITE', '1.13', '{2A3123E1-DBDA-498B-80D1-A50445491F2C}']}
 
 begin
     Dir.mkdir('licenses') unless Dir.exist?(licenseDir)

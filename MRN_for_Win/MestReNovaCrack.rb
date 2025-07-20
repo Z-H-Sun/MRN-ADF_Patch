@@ -204,25 +204,6 @@ data = {'AFFINImeter-NMR.lic' => ['AFFINImeter-NMR', '1.0', '{0BA83ECE-335C-404A
 'MSpin.lic' => ['MSpin', '2.0', '{61519D7E-EBA9-4009-91AF-733E750EEB17}'],
 'Document.lic' => ['Document', '1.6', '{04A0EFB9-23D6-458F-B526-EA06B71A650F}'],
 'NMR LITE.lic' => ['NMR LITE', '1.13', '{2A3123E1-DBDA-498B-80D1-A50445491F2C}']}
-=begin
--- need to BreakOnEntry; alternatively, 'Process List -> File -> Create Process'
-createProcess("C:/Program Files/Mestrelab Research S.L/MestReNova/MestReNova.exe", "", true, true)
--- the breakpoint function varies for different versions; the one below is for v (64-bit)
-debug_setBreakpoint("mestrenova.exe+d3b80")
--- CE Lua script for showing plugins' name/version/uuid
-function debugger_onBreakpoint()
-  local name = readString(readQword(R9)+0x18,100,true)
-
-  -- comment out the following line to show information of "DFT Predictor" plugin
-  if (name == "DFT Predictor") then return 1 end -- this plugin shows up too often; disable
-
-  print(name)
-  print(readString(readQword(R8)+0x18,100,true))
-  print(string.format("%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X",readInteger(RDX),readSmallInteger(RDX+4),readSmallInteger(RDX+6),readByte(RDX+8),readByte(RDX+9),readByte(RDX+10),readByte(RDX+11),readByte(RDX+12),readByte(RDX+13),readByte(RDX+14),readByte(RDX+15)))
-  print("")
-  return 1 -- do not block
-end
-=end
 
 for i in listNum
     filename = File.join(listDir[i], "MestReNova.exe")
