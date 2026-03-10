@@ -13,6 +13,10 @@ createProcess("C:/Program Files/Mestrelab Research S.L/MestReNova/MestReNova.exe
 
 Once the windows debugger breaks on the entry point of MRN, add a breakpoint and register a callback function:
 
+> [!note]
+> The code block below works for MRN Windows 64-bit 16.0.0-39276 version. For the latest 17.0.0-41118 version, change three places:
+> `d3b80 --> 156720`; two places of `0x18 --> 0x10` (because `QString` structure has changed)
+
 ```lua
 -- the breakpoint function varies for different versions; the one below is for v16.0.0-39276 (64-bit)
 debug_setBreakpoint("mestrenova.exe+d3b80")
@@ -145,7 +149,7 @@ converts error codes 0x8000000x to human-readable error strings; a few of them a
 
 ### MestReNova.exe+D3520
 
-checks the error code for a given plugin. This is the function that our patcher targets, where the opcodes for jumping to 0x800000B and 0x8000000C error codes are nullified. This function is ***only*** called by function `_D3B80`.
+checks the error code for a given plugin. This is the function that our patcher targets, where the opcodes for jumping to 0x8000000B and 0x8000000C error codes are nullified. This function is ***only*** called by function `_D3B80`.
 
 Prototype:
 ```c++
@@ -220,13 +224,19 @@ The last paramter `char unknown1` is either 2 or 0x10 (see function `_7E070`).
 
 ## How to set breakpoint
 
-As discussed above, function `_D3520` is directly relevant and should be easy enough to locate (e.g., by searching for immediate value 0x800000B, or by a more strict pattern search like in our patcher); however, its input arguments does not contain the plugin name info. Therefore, we can target its unique caller, `_D3B80`, and set a breakpoint at its beginning. Now we will be able to read the plugin UUID `QUuid* plugin_uuid` from `RDX`, version `QString* plugin_version` from `R8`, and name `QString* plugin_name` from `R9`.
+As discussed above, function `_D3520` is directly relevant and should be easy enough to locate (e.g., by searching for immediate value 0x8000000B, or by a more strict pattern search like in our patcher); however, its input arguments does not contain the plugin name info. Therefore, we can target its unique caller, `_D3B80`, and set a breakpoint at its beginning. Now we will be able to read the plugin UUID `QUuid* plugin_uuid` from `RDX`, version `QString* plugin_version` from `R8`, and name `QString* plugin_name` from `R9`.
+
+> [!note]
+> In the latest 17.0.0-41118 version, `_D3520` becomes `_156180`, whose unique caller becomes a wrapper at `_006B36`, which is only called by `_156720`, the last being our taget.
 
 ## How to read contents from QObjects
 
 QUuid is binary data that is 16 bytes long. Its string form is `03020100-0504-0706-0809-0A0B0C0D0E0F`.
 
 QString is a structure [like illustrated below](https://woboq.com/blog/qstringliteral.html). The actual `char*` array starts from `QStringData+offset` where offset is typically the size of the header, 0x18.
+
+> [!note]
+> In the latest 17.0.0-41118 version, the QString structure has changed. Now the offset is 0x10 instead of 0x18.
 
 ![](https://github.com/user-attachments/assets/ecd430df-a38b-48e2-9603-573c9cefa9e9)
 

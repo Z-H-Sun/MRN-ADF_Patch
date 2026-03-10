@@ -1,6 +1,6 @@
 # encoding: ASCII-8Bit
 # ruby 1.8.7
-system("title MestReNova 12-16 Patcher by Zack")
+system("title MestReNova 12-17 Patcher by Zack")
 @total = [0, 0] # number of [all, patched] files
 
 def patch(filename)
@@ -158,6 +158,7 @@ data = {'AFFINImeter-NMR.lic' => ['AFFINImeter-NMR', '1.0', '{0BA83ECE-335C-404A
 'NMR.lic' => ['NMR', '1.21', '{5B0A2812-8EE2-406F-8030-84F5F6AC4A4B}'],
 'NMRPredictDesktop.lic' => ['NMRPredict Desktop', '1.21', '{1C479DD8-9A31-4016-AE56-DEE522080B06}'], # Modgraph NMRPredict Desktop
 'Modgraph NMRPredict Server.lic' => ['Modgraph NMRPredict Server', '1.9', '{6A883E63-50E7-4470-A615-0A989596E749}'],
+'GCNNPredictor.lic' => ['GCNN Predictor', '1.0', '{CF4B4CB8-E38D-4497-BD03-A46E659BC23F}'],
 'PhysChemProperties.lic' => ['PhysChem Properties', '1.8', '{63CA247B-FA1D-43cb-AAEE-AC0EF2448B9C}'],
 'PhysChemBasicProperties.lic' => ['PhysChem Basic Properties', '1.8', '{260B68B7-013E-4103-90A7-36C5E02C0651}'],
 'PhysChemHumanSerumAlbuminAffinityConstant.lic' => ['Human Serum Albumin Affinity Constant', '1.2', '{288B9DE6-8BEB-476e-AF90-39DD7171AF30}'],
