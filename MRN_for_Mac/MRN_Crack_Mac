@@ -1,10 +1,110 @@
 #!/usr/bin/env ruby
 # encoding: ASCII-8Bit
 # ruby 2.0.0
-print "\033]0;MestReNova 12-16 (Mac) Patcher by Zack\007"
+print "\033]0;MestReNova 12-17 (Mac) Patcher by Zack\007"
 require 'io/console'
 
-def patch(filename)
+def removeAllSig(f)
+    os = Array.new(4, -1) # [offset for x64, size for x64, offset for arm, size for arm]
+    if f.read(4) == "\xCA\xFE\xBA\xBE" # Mach-O Fat Binary
+        n = f.read(4).unpack('N')[0] # fat_arch_size; big-endian
+        o = Array.new(n, 0)
+        s = Array.new(n, 0)
+        for i in 0...n
+            f.seek(8, 1) # skip arch cpu_(sub_)type
+            o[i], s[i] = f.read(8).unpack('N2') # arch file_offsset; size
+            f.seek(4, 1) # skip alignment
+        end
+        for i in 0...n
+            puts "\e[1;32mMach-O binary found\e[0m @ 0x#{o[i].to_s(16)} (+ 0x#{s[i].to_s(16)})"
+            t = removeSig(f, o[i], s[i])
+            if t == 1 and os[0] < 0
+                os[0] = o[i]; os[1] = s[i]
+            elsif t == 2 and os[2] < 0
+                os[2] = o[i]; os[3] = s[i]
+            end
+        end
+    else
+        s = File.size(f)
+        t = removeSig(f, 0, s) * 2
+        if !t.zero? then os[t-2] = 0; os[t-1] = s end
+    end
+    return os
+rescue # error
+    puts "\e[1;31mError occurred:\e[0m"
+    puts $!.inspect
+    puts $@.inspect
+    return os
+end
+
+def removeSig(f, offset, size)
+    type = 0
+    f.seek(offset)
+    if f.read(4) != "\xCF\xFA\xED\xFE" # Mach-O binary
+        puts "\e[1;33mWarning: Not a Mach-O binary @ 0x#{offset.to_s(16)}. Is this authentic MNova?\e[0m"
+        return 0
+    end
+    c = f.read(4)
+    if c == "\7\0\0\1" # cpu_type==x86_64
+        @must_code_sign = false
+        type = 1
+    elsif c == "\x0C\0\0\1" # cpu_type==ARM64
+        @need_code_sign = true
+        type = 2
+    else
+        puts "\e[1;33mIgnored: Mach-O binary of unsupported CPU type [0x#{c.unpack('H*')[0]}] found\e[0m @ 0x#{offset.to_s(16)} (+ 0x#{size.to_s(16)})"
+    end
+    f.seek(8, 1)
+    tmp = f.read(16) # now at: end of mach head
+    ncmd, cmdSize = tmp.unpack('L2')
+    if cmdSize+32 > size
+        puts "\e[1;33mWarning: EOF reached. Is this authentic MNova?\e[0m"
+        return type
+    end
+    cmdSizeToMove = cmdSize # a widely adopted trick is to fill the last load cmd with 16 \0's, but that relies on the fact that LC_CODE_SIGNATURE is the last load cmd. This is usually true, but MNova 17's ARM64 binary isn't: it has 3 LC_RPATH load cmds after LC_CODE_SIGNATURE. Fine, do this in a safer way
+    cmdCodeSigSize = sigOffset = sigSize = 0
+    for i in 0...ncmd
+        _t, _s, sigOffset, sigSize = f.read(16).unpack('L4')
+        cmdSizeToMove -= _s
+        if _t == 0x1d # LC_CODE_SIGNATURE
+            cmdCodeSigSize = _s # in this case, _s must be 16, but just to be safe
+            break
+        end
+        f.seek(_s - 16, 1)
+    end
+    if cmdCodeSigSize <= 0
+        puts "\e[1;33mWarning: No signature found. Is this authentic MNova?\e[0m"
+        return type
+    end
+    puts "\e[1;32mDigital signature load command found\e[0m @ 0x#{(f.pos-cmdCodeSigSize).to_s(16)}"
+    if sigOffset+sigSize > size
+        puts "\e[1;33mWarning: EOF reached. Is this authentic MNova?\e[0m"
+        return type
+    end
+    puts "\e[1;32mDigital signature block found\e[0m @ 0x#{offset.to_s(16)}+#{sigOffset.to_s(16)} (+ 0x#{sigSize.to_s(16)})"
+    if cmdSizeToMove > 0
+        tmp = f.read(cmdSizeToMove)
+        f.seek(-cmdSizeToMove-cmdCodeSigSize, 1)
+        f.write(tmp)
+    else
+        f.seek(-cmdCodeSigSize, 1)
+    end
+    f.write("\0"*cmdCodeSigSize)
+    f.seek(16+offset)
+    f.write([ncmd-1, cmdSize-cmdCodeSigSize].pack('L2'))
+    f.seek(sigOffset+offset)
+    f.write("\0"*sigSize)
+    puts "\e[1;32mSuccessfully removed digital signature.\e[0m"
+    @sigs += 1
+    return type
+rescue # error
+    puts "\e[1;31mError occurred:\e[0m"
+    puts $!.inspect
+    puts $@.inspect
+    return type
+end
+
+def patchAll(filename)
     puts "\n\e[1;33mProcessing\e[0m #{filename}..."
     # do not patch patched ones
     bakfilename = filename + '.bak'
@@ -16,102 +116,138 @@ def patch(filename)
         end
         bakfilename = nil
     end
+    IO.copy_stream(filename, bakfilename) if bakfilename
     f = open(filename, "r+b") # read and write, binary
-    g = open(bakfilename, "wb") if bakfilename
-
-    # clear digital signature
-    g.write(f.read(16)) if bakfilename
-    tmp = f.read(16)
-    g.write(tmp) if bakfilename # end of mach head
-    ncmd, cmdSize = tmp.unpack('L2')
-    g.write(f.read(cmdSize-16)) if bakfilename
-    tmp = f.read(16)
-    g.write(tmp) if bakfilename # end of load cmd
-    sig, _, sigOffset, sigSize = tmp.unpack('L4')
-    has_sig = (sig == 0x1d) # LC_CODE_SIGNATURE
-    unless has_sig
-        puts "\e[1;33mWarning: No signature found. Is this authentic MNova? [Press `Y\' to continue anyway]\e[0m"
-        if STDIN.getch.downcase != 'y'
-            puts("\e[1;33mNo operation performed.\e[0m")
-            f.close
-            g.close if bakfilename
-            File.delete(bakfilename)
-            return
-        end
+    
+    @sigs = @patches = @byte = 0 # number of to-be-patched patterns, processed length
+    @need_code_sign = false
+    @must_code_sign = true
+    os = removeAllSig(f)
+    if os[0] >= 0
+        puts "\e[1;32mMach-O binary [x86_64] found\e[0m @ 0x#{os[0].to_s(16)} (+ 0x#{os[1].to_s(16)})"
+        patchX86(f, os[0], os[0]+os[1])
     end
-
-    @times = @byte = 0 # number of to-be-patched patterns, processed length
-    loop do
-        b = f.gets(sep="\x80") # read until met with 0x80
-        break if b.nil? # EOF
-        len = b.size # read length
-        g.write(b) if bakfilename # copy
-        byte = (f.pos / 104857.6).to_i
-        print "\r\e[1;33mProcessed %.1f MB.\e[0m " % (byte/10.0) if byte != @byte
-        @byte = byte
-        
-        next if len < 4
-        if b[-4, 4] == "\x0b\x00\x00\x80"
-            pat = f.read(10); f.seek(-10, 1)
-            next unless pat.include?("\x0b\x00\x00\x80")
-            f.seek(-128, 1); pat = f.read(128);
-            ind = pat.rindex("\x75")
-            next if ind.nil?
-            ind2 = pat.rindex("\x74")
-            next if ind2.nil?
-            puts "\e[1;32m\rFound pattern\e[0m, JNZ -> JMP: \e[7m74 ..\e[0m .* \e[7m75 ..\e[0m .* \e[7m0B 00 00 80\e[0m .* \e[7m0B 00 00 80\e[0m"
-            f.seek(ind - 128, 1); f.write("\x90\x90")
-            f.seek(ind2 - 2 - ind, 1); f.write("\x90\x90"); f.seek(126 - ind2, 1)
-        else
-            next # not a to-be-patched pattern; roll back
-        end
-        @times += 1
+    if os[2] >= 0
+        puts "\e[1;32mMach-O binary [ARM64] found\e[0m @ 0x#{os[2].to_s(16)} (+ 0x#{os[3].to_s(16)})"
+        patchARM(f, os[2], os[2]+os[3])
     end
-
-
-    if @times.zero? # not applicable
-        f.close
-        if bakfilename
-            g.close
-            File.delete(bakfilename)
-        end
-        puts "\e[1;33mNo to-be-patched pattern found in this file.\e[0m"
-        return
-    end
-    puts "\e[1;33mPatched #{@times} place(s) in this file.\e[0m"
-
-    f.seek(16)
-    f.write([ncmd-1, cmdSize-16].pack('L2')) # end of mach head
-    f.seek(cmdSize-16, 1)
-    f.write("\0"*16) # end of load cmd
-    f.seek(sigOffset)
-    f.write("\0"*sigSize)
-    puts
-    puts "\e[1;32mSuccessfully removed digital signature.\e[0m"
     f.close
-    g.close if bakfilename
+    if @patches.zero? # not applicable
+        File.delete(bakfilename) if bakfilename and @sigs.zero?
+        puts "\e[1;33mNo to-be-patched pattern found in this file.\e[0m"
+    else
+        puts "\e[1;32mPatched #{@patches+@sigs} place(s) in this file.\e[0m"
+    end
+
+    return unless @need_code_sign
+    puts "\n\e[1;31mNOTE: Further actions may be necessary to complete the patch. Please read below carefully.\e[0m\n\nStarting from MNova 17.0, support on ARM64 machines (i.e., Macs with Apple Silicon processors) have been implemented; however, MacOS > 10 requires a valid digital signature for an ARM64-architected app to run."
+    if @must_code_sign
+        puts "\e[1;33mTherefore, it is necessary for MNova to be signed.\e[0m Press any key to proceed to complete this process by the `codesign` tool."
+        STDIN.getch
+    else
+        puts "1. If you are using a Mac with Intel processors, you are all set! Feel free to start using MNova now.\n2. Otherwise, you can open MNova with Rosetta; then MNova will also run properly.\n3. If you cannot run Rosetta on a ARM64 Mac, MNova must be signed in order to run. \e[1;33mUse `codesign` tool to complete this process?\e[0m [y/N]?\e[1;31m"
+        return if STDIN.getch.downcase != 'y'
+    end
+    system("codesign --force --deep -s - \"#{filename}\"
+if [ \"$?\" -eq 0 ]; then echo \"\e[1;32mSuccessfully signed.\e[0m\"; else echo \"Failed to sign. MNova may not run properly.\e[0m\"; fi")
 rescue # error
     puts "\e[1;31mError occurred:\e[0m"
     puts $!.inspect
     puts $@.inspect
 end
 
-alias :_exit :exit
-def exit(code=0) # to pause before exiting
-    print "\n\e[1;33mEND OF OPERATION.\e[0m Press Enter to continue."
-    STDIN.gets
-    _exit(code)
+# TBaseLicenseValidator::validateProduct(QUuid const&, QString const&, QDate const&, TSignKey const&, QFlags<TBaseLicenseValidator::TValidateFlag>)
+def patchX86(f, offset, offset_max)
+    puts "\e[1;33mProcessing x86_64 architecture\e[0m..."
+    f.seek(offset)
+    patched = false
+    loop do
+        maxlen = offset_max - f.pos
+        b = f.gets("\x80", maxlen) # read until met with 0x80; do not read further than `offset_max`
+        break if b.nil? # EOF
+        len = b.size # read length
+        p = f.pos
+        byte = (p / 104857.6).to_i
+        print "\r\e[1;33mProcessed %.1f MB.\e[0m " % (byte/10.0) if byte != @byte
+        @byte = byte
+        break if len == maxlen # EOF
+
+        next if len < 4
+        if b[-4, 4] == "\x0b\x00\x00\x80"
+            pat = f.read(10); f.seek(-10, 1)
+            next unless pat.include?("\x0b\x00\x00\x80")
+            f.seek(-128, 1); pat = f.read(128)
+            ind = pat.rindex("\x75")
+            next if ind.nil?
+            ind2 = pat.rindex("\x74")
+            next if ind2.nil?
+            dp = ind - 128
+            puts "\e[1;32m\rFound pattern\e[0m @ 0x#{(p+dp).to_s(16)}, J(N)Z -> NOP: \e[7m74 ..\e[0m .* \e[7m75 ..\e[0m .* \e[7m0B 00 00 80\e[0m .* \e[7m0B 00 00 80\e[0m"
+            f.seek(dp, 1); f.write("\x90\x90")
+            f.seek(ind2 - 2 - ind, 1); f.write("\x90\x90"); f.seek(126 - ind2, 1)
+        else
+            next # not a to-be-patched pattern; roll back
+        end
+        patched = true
+        @patches += 1
+    end
+    puts(patched ? "\e[1;32mOperation performed.\e[0m" : "\e[1;33mNo operation performed.\e[0m")
+rescue # error
+    puts "\e[1;31mError occurred:\e[0m"
+    puts $!.inspect
+    puts $@.inspect
+end
+
+def patchARM(f, offset, offset_max)
+    puts "\e[1;33mProcessing ARM64 architecture\e[0m..."
+    f.seek(offset)
+    patched = false
+    loop do
+        maxlen = offset_max - f.pos
+        b = f.gets("\xC0\x03\x5F\xD6", maxlen) # read until met with 0x80; do not read further than `offset_max`
+        break if b.nil? # EOF
+        len = b.size # read length
+        p = f.pos
+        byte = (p / 104857.6).to_i
+        print "\r\e[1;33mProcessed %.1f MB.\e[0m " % (byte/10.0) if byte != @byte
+        @byte = byte
+        break if len == maxlen # EOF
+
+        next if len < 200
+        ind1 = ind2 = -1
+        b_arr = b.unpack('C200')
+        3.step(199, 4) do |i|
+            if b_arr[i] == 0x36
+                ind1 = i-3 if b_arr[i-1] == 0 and b_arr[i-4] == 0x97 and ind1 < 0 # BL TLicense::verify; [TBZ W0, #0, ...]
+            elsif ind1 >= 0 and b_arr[i] == 0x54 and b_arr[i-1] == 0 and b_arr[i-3] & 0xF == 1 and b_arr[i-4] == 0x31 # CMN W8, #0xA; [B.NE ...]
+                ind2 = i-3
+                break
+            end
+        end
+        next if ind1 < 0 or ind2 < 0
+        dp = ind1 - len
+        puts "\e[1;32m\rFound pattern\e[0m @ 0x#{(p+dp).to_s(16)}, TBZ/B.NE -> NOP: 97 \e[7m.. .. 00 36\e[0m .* 31 \e[7m.1 .. 00 54\e[0m"
+        f.seek(dp, 1); f.write("\x1F\x20\3\xD5")
+        f.seek(ind2 - 4 - ind1, 1); f.write("\x1F\x20\3\xD5"); f.seek(p)
+        patched = true
+        @patches += 1
+    end
+    puts(patched ? "\e[1;32mOperation performed.\e[0m" : "\e[1;33mNo operation performed.\e[0m")
+rescue # error
+    puts "\e[1;31mError occurred:\e[0m"
+    puts $!.inspect
+    puts $@.inspect
 end
 
 # ------------------------------------------------------------------------------
 
 dir = '/Applications/MestReNova.app/Contents/MacOS'
-unless Dir.exist?(dir) then puts "\n\e[1;31mSeems that MestReNova is not installed..."; exit end
+unless Dir.exist?(dir) then puts "\n\e[1;31mSeems that MestReNova is not installed...\e[0m"; exit end
 print "\n\e[1;33mPress `y' to patch MestReNova at \e[0m#{dir}"
 exit unless STDIN.getch.downcase == 'y'
 
 Dir.chdir(dir)
-patch('MestReNova')
+patchAll('MestReNova')
 
 # ------------------------------------------------------------------------------
 
@@ -171,6 +307,7 @@ data = {'AFFINImeter-NMR.lic' => ['AFFINImeter-NMR', '1.0', '{0BA83ECE-335C-404A
 'NMR.lic' => ['NMR', '1.21', '{5B0A2812-8EE2-406F-8030-84F5F6AC4A4B}'],
 'NMRPredictDesktop.lic' => ['NMRPredict Desktop', '1.21', '{1C479DD8-9A31-4016-AE56-DEE522080B06}'], # Modgraph NMRPredict Desktop
 'Modgraph NMRPredict Server.lic' => ['Modgraph NMRPredict Server', '1.9', '{6A883E63-50E7-4470-A615-0A989596E749}'],
+'GCNNPredictor.lic' => ['GCNN Predictor', '1.0', '{CF4B4CB8-E38D-4497-BD03-A46E659BC23F}'],
 'PhysChemProperties.lic' => ['PhysChem Properties', '1.8', '{63CA247B-FA1D-43cb-AAEE-AC0EF2448B9C}'],
 'PhysChemBasicProperties.lic' => ['PhysChem Basic Properties', '1.8', '{260B68B7-013E-4103-90A7-36C5E02C0651}'],
 'PhysChemHumanSerumAlbuminAffinityConstant.lic' => ['Human Serum Albumin Affinity Constant', '1.2', '{288B9DE6-8BEB-476e-AF90-39DD7171AF30}'],
@@ -227,5 +364,3 @@ rescue
     puts $!.inspect
     puts $@.inspect
 end
-
-exit

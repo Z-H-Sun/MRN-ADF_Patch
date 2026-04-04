@@ -2,7 +2,7 @@
 # encoding: ASCII-8Bit
 # ruby 2
 
-print "\033]0;MestReNova 12-16 (Ubuntu) Patcher by Zack\007"
+print "\033]0;MestReNova 12-17 (Ubuntu) Patcher by Zack\007"
 require 'io/console'
 
 def patch(filename)
@@ -35,8 +35,8 @@ def patch(filename)
             pat = f.read(10); f.seek(-10, 1)
             next unless pat.include?(b[-4, 4])
             pos = f.tell
-            f.seek(-1024, 1)
-            pos2 = pos-1024; pat = ''
+            f.seek(-2048, 1) # roll back a certain number of bytes to find which JZ opcode jumps to this place. Prior to MNova 17.0, this value was 1024, but since then, the jump amount is much larger (in v17.0, it's `JZ +0x405`) so must increase this value to 2048
+            pos2 = pos-2048; pat = ''
 
             while pos2 + pat.size < pos
                 pos2 = f.tell
@@ -44,17 +44,17 @@ def patch(filename)
                 next if pat.size < 6
                 next unless pat[0] == "\x84"
                 if ((pos2+5+pat[1, 4].unpack('l')[0]) - (pos-7)).abs < 8 # allow small deviation
+                    puts "\e[1;32m\rFound pattern\e[0m, JZ [loc_#{(pos-7).to_s(16)}]-> JMP (@ 0x#{(pos2-1).to_s(16)}): \e[7m0F 84 ..{4}\e[0m .* \e[7m#{b[-4, 4].unpack('H*')[0].scan(/../).join(' ').upcase}\e[0m"
                     f.seek(-pat.size-1, 1)
                     f.write("\x90"*6)
+                    @times += 1
                     break
                 end
             end
             f.seek(pos, 0)
-            puts "\e[1;32m\rFound pattern\e[0m, JNZ [loc_#{(pos-7).to_s(16)}]-> JMP (@ 0x#{(pos2-1).to_s(16)}): \e[7m0B 74 ..{4}\e[0m .* \e[7m#{b[-4, 4].unpack('H*')[0].scan(/../).join(' ').upcase}\e[0m"
         else
             next # not a to-be-patched pattern; roll back
         end
-        @times += 1
     end
     if @times.zero?
         # not applicable
@@ -148,6 +148,7 @@ data = {'AFFINImeter-NMR.lic' => ['AFFINImeter-NMR', '1.0', '{0BA83ECE-335C-404A
 'NMR.lic' => ['NMR', '1.21', '{5B0A2812-8EE2-406F-8030-84F5F6AC4A4B}'],
 'NMRPredictDesktop.lic' => ['NMRPredict Desktop', '1.21', '{1C479DD8-9A31-4016-AE56-DEE522080B06}'], # Modgraph NMRPredict Desktop
 'Modgraph NMRPredict Server.lic' => ['Modgraph NMRPredict Server', '1.9', '{6A883E63-50E7-4470-A615-0A989596E749}'],
+'GCNNPredictor.lic' => ['GCNN Predictor', '1.0', '{CF4B4CB8-E38D-4497-BD03-A46E659BC23F}'],
 'PhysChemProperties.lic' => ['PhysChem Properties', '1.8', '{63CA247B-FA1D-43cb-AAEE-AC0EF2448B9C}'],
 'PhysChemBasicProperties.lic' => ['PhysChem Basic Properties', '1.8', '{260B68B7-013E-4103-90A7-36C5E02C0651}'],
 'PhysChemHumanSerumAlbuminAffinityConstant.lic' => ['Human Serum Albumin Affinity Constant', '1.2', '{288B9DE6-8BEB-476e-AF90-39DD7171AF30}'],
@@ -204,5 +205,4 @@ rescue
     puts $!.inspect
     puts $@.inspect
 end
-
 exit
