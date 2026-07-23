@@ -1,6 +1,6 @@
 # encoding: ASCII-8Bit
 
-system("title ChemOffice Suite 18.0-25.0 Patcher by Zack")
+system("title ChemOffice Suite 18-26 Patcher by Zack")
 Dir.chdir(File.dirname($Exerb ? ExerbRuntime.filepath : __FILE__)) # change currentDir to the file location
 
 @total = [0, 0, 0, 0, 0, 0] # number of [all, patched, restored, ignored, failed, patial] files
@@ -21,7 +21,8 @@ def patch(filename, mode)
   while not f.eof?
     d = f.gets(sep="\x2a") # read until met with 0x2a (retn)
     next if d.size < 42 # Filter 1
-    if d[-5, 5] == "\x0a\x06\x0b\x07\x2a" and d[-12, 6] == "\x2d\x04\x17\x0a\x2b\x02" # Filter 2a
+    if d[-5, 5] == "\x0a\x06\x0b\x07\x2a" and d[-12, 6] == "\x2d\x04\x17\x0a\x2b\x02" and # Filter 2a
+       d.getbyte(-17) == 0x28 # finer Filter 2a' (the last IL instruct must be `call`) otherwise in some assemblies in v26, `std._State_manager<int>.valid` may be incorrectly found instead
       i = 0
     elsif d[-3, 3] == "\x0a\x06\x2a" and d[-12, 7] == "\x33\x04\x17\x0a\x2b\x04\x2b" # Filter 2b
       i = 1
