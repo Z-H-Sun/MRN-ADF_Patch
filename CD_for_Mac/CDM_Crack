@@ -2,7 +2,7 @@
 # encoding: ASCII-8Bit
 # ruby 2.0.0
 require 'io/console'
-print "\033]0;ChemDraw 17~25 (Mac) Universal Patcher by Zack\007"
+print "\033]0;ChemDraw 17~26 (Mac) Universal Patcher by Zack\007"
 
 def removeAllSig(filename)
     puts "\e[1;33mProcessing\e[0m #{filename}..."
@@ -269,8 +269,28 @@ end
 @vers = 0 # total number of versions of ChemDraw
 Dir.entries('/Applications').each do |i|
     next unless i.include?('ChemDraw')
-    puts; print "\e[7m"; puts '-'*50; puts i.sub('.app', '').ljust(50); puts '-'*50; print "\e[0m"
-    ver = i[/\d+\.?\d*/].to_f
+    if i == 'ChemDraw.app' # for versions >= 26, the version won't be in the app name
+      ver = 0
+      vf = File.join('/Applications', i, 'Contents/Info.plist') # so, instead read the version from the package's meta data
+      if File.exist?(vf)
+        open(vf) do |f|
+          f.each_line do |l|
+            if l.include?('CFBundleShortVersionString')
+              l = f.gets('<key>')
+              break if l.nil?
+              vf = l[/\d+\.?\d*/]
+              ver = vf.to_f
+              break
+            end
+          end
+        end
+      end
+      name = ver.zero? ? 'ChemDraw (unknown version)' : 'ChemDraw ' + vf
+    else
+      name = i[0...-4]
+      ver = i[/\d+\.?\d*/].to_f
+    end
+    puts; print "\e[7m"; puts '-'*50; puts name.ljust(50); puts '-'*50; print "\e[0m"
     s = File.join('/Applications', i, 'Contents/MacOS/ChemDraw')
     if ver < 17
         puts "\e[1;31mNot applicable (Version number #{ver} < 17)\e[0m"; next
@@ -279,7 +299,7 @@ Dir.entries('/Applications').each do |i|
     else
         f = File.join('/Applications', i, 'Contents/Frameworks/ChemDrawBase.framework/Versions/A/ChemDrawBase')
     end
-    if File.exists?(f) and File.exists?(s)
+    if File.exist?(f) and File.exist?(s)
         @need_code_sign = false
         @must_code_sign = true
         removeAllSig(s); patchAll(f); @vers += 1
